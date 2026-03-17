@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'features/notifications/presentation/pages/notifications_page.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'services/app_provider.dart';
@@ -37,6 +38,7 @@ class LamesseDamaApp extends StatelessWidget {
       darkTheme: AppTheme.dark,
       routes: {
         '/settings': (_) => const SettingsPage(),
+         '/notifications': (_) => const NotificationsPage(),
       },
       home: _AppRoot(),
     );

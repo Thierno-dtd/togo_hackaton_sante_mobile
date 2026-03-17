@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import '../data/models/models.dart';
 import '../data/mock/mock_data.dart';
 import '../core/constants/app_constants.dart';
+import '../data/models/notification_model.dart';
+import 'notification_service.dart';
 
 class AppProvider extends ChangeNotifier {
+
+  final NotificationService _notificationService = NotificationService();
   // ─── Theme ───
   ThemeMode _themeMode = ThemeMode.light;
   ThemeMode get themeMode => _themeMode;
@@ -170,14 +174,77 @@ class AppProvider extends ChangeNotifier {
     }
   }
 
-  // ─── Init ───
-  void initWithUser(UserModel user) {
+
+   List<NotificationModel> _notifications = [];
+  List<NotificationModel> get notifications => _notifications;
+  
+  int get unreadNotificationsCount => 
+      _notifications.where((n) => !n.isRead).length;
+
+  void loadMockNotifications() {
+    _notifications = MockData.generateMockNotifications();
+    notifyListeners();
+  }
+
+  void addNotification(NotificationModel notification) {
+    _notifications.insert(0, notification);
+    notifyListeners();
+  }
+
+  void markNotificationAsRead(String id) {
+    final index = _notifications.indexWhere((n) => n.id == id);
+    if (index != -1) {
+      _notifications[index] = _notifications[index].copyWith(isRead: true);
+      notifyListeners();
+    }
+  }
+
+  void deleteNotification(String id) {
+    _notifications.removeWhere((n) => n.id == id);
+    notifyListeners();
+  }
+
+  void markAllAsRead() {
+    _notifications = _notifications
+        .map((n) => n.copyWith(isRead: true))
+        .toList();
+    notifyListeners();
+  }
+
+  // ─── Scheduling automatique ───
+  Future<void> scheduleAllReminders() async {
+    await _notificationService.initialize();
+
+    // Médicaments
+    for (final med in _medicationReminders) {
+      for (final time in med.intakeTimes) {
+        await _notificationService.scheduleMedicationReminder(med, time);
+      }
+      if (med.needsRenewal) {
+        await _notificationService.scheduleRenewalAlert(med);
+      }
+    }
+
+    // Dépistages
+    for (final screening in _screeningReminders) {
+      await _notificationService.scheduleScreeningReminder(screening);
+    }
+  }
+
+  // ─── Init mis à jour ───
+  void initWithUser(UserModel user) async {
     _currentUser = user;
     _isLoggedIn = true;
     loadMockMeasurements();
     loadMockReminders();
+    loadMockNotifications();
     loadDailyAdvice(user.diseaseType ?? 'all');
     loadEvents();
+    
+    // Programmer les notifications
+    await scheduleAllReminders();
+    
     notifyListeners();
   }
+
 }

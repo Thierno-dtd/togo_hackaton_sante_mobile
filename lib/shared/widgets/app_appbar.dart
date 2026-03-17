@@ -56,34 +56,49 @@ class _NotifAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final unreadCount = provider.unreadNotificationsCount;
+
     return  Container(
       constraints: const BoxConstraints(),
       decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Stack(
           children: [
             IconButton(
               constraints: const BoxConstraints(),
-              onPressed: () {},
+              onPressed: () {Navigator.pushNamed(context, '/notifications');},
               icon: const Icon(Icons.notifications_outlined, size: 22),
             ),
-            if (provider.overdueScreening.isNotEmpty)
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: AppColors.warning,
-                    shape: BoxShape.circle,
+             if (unreadCount > 0)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: AppColors.error,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Center(
+                        child: Text(
+                          unreadCount > 9 ? '9+' : unreadCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-          ],
-      ),
+         ],
+       ),
     );
   }
 }

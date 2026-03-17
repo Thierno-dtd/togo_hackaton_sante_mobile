@@ -15,6 +15,8 @@ class DashboardPage extends StatelessWidget {
     final user = provider.currentUser!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final age = AppUtils.calculateAge(user.dateOfBirth);
+    final unreadCount = provider.unreadNotificationsCount;
+
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
@@ -71,28 +73,46 @@ class DashboardPage extends StatelessWidget {
                             ),
                           ),
                             Container(
-                              padding: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.all(1),
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Stack(
                                 children: [
-                                  const Icon(Icons.notifications_outlined,
-                                      color: Colors.white, size: 22),
-                                  if (provider.overdueScreening.isNotEmpty)
+                                  IconButton(
+                                    constraints: const BoxConstraints(),
+                                    onPressed: () {Navigator.pushNamed(context, '/notifications');},
+                                    icon: const Icon(Icons.notifications_outlined, size: 22, color: Colors.white),
+                                  ),
+                                  
+                                  if (unreadCount > 0)
                                     Positioned(
-                                      right: 0,
-                                      top: 0,
+                                      right: 8,
+                                      top: 8,
                                       child: Container(
-                                        width: 8,
-                                        height: 8,
+                                        padding: const EdgeInsets.all(4),
                                         decoration: const BoxDecoration(
-                                            color: AppColors.warning,
-                                            shape: BoxShape.circle),
+                                          color: AppColors.error,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 16,
+                                          minHeight: 16,
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            unreadCount > 9 ? '9+' : unreadCount.toString(),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                    
+          
                                 ],
                               ),
                             ),
