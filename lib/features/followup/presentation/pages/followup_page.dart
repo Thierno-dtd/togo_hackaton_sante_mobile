@@ -6,6 +6,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/app_utils.dart';
 import '../../../../services/app_provider.dart';
 import '../../../../data/models/models.dart';
+import '../../../../shared/widgets/app_appbar.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 
 class FollowUpPage extends StatefulWidget {
@@ -40,34 +41,24 @@ class _FollowUpPageState extends State<FollowUpPage>
     return Scaffold(
       backgroundColor:
           isDark ? AppColors.darkBackground : AppColors.background,
-      appBar: AppBar(
-        backgroundColor:
-            isDark ? AppColors.darkSurface : AppColors.white,
+      appBar: AppAppBar(
+       
         // ─── TITRE seul, sans le bouton + ───
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Suivi de santé', style: AppTextStyles.h4),
+            Text('Suivi de santé',),
             const SizedBox(width: 10),
             if (provider.currentUser?.diseaseType != null)
               DiseaseTag(diseaseType: provider.currentUser!.diseaseType!),
           ],
         ),
         // ─── Notification + Settings dans l'AppBar ───
-        actions: [
-          _NotifAction(provider: provider),
-          IconButton(
-            onPressed: () =>
-                Navigator.pushNamed(context, '/settings'),
-            icon: const Icon(Icons.settings_outlined, size: 22),
-          ),
-          const SizedBox(width: 4),
-        ],
-        bottom: TabBar(
+       bottom: TabBar(
           controller: _tabCtrl,
           labelStyle: AppTextStyles.body
               .copyWith(fontWeight: FontWeight.w600),
-          labelColor: AppColors.primary,
+          labelColor: AppColors.white,
           unselectedLabelColor: AppColors.textHint,
           indicatorColor: AppColors.primary,
           tabs: const [

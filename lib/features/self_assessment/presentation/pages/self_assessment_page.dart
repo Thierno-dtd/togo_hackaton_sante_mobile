@@ -7,6 +7,7 @@ import '../../../../core/utils/app_utils.dart';
 import '../../../../services/app_provider.dart';
 import '../../../../data/models/models.dart';
 import '../../../../data/mock/mock_data.dart';
+import '../../../../shared/widgets/app_appbar.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 
 class SelfAssessmentPage extends StatefulWidget {
@@ -119,15 +120,18 @@ class _SelfAssessmentPageState extends State<SelfAssessmentPage> {
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
-      appBar: AppBar(
-        backgroundColor: isDark ? AppColors.darkSurface : AppColors.white,
+      appBar: AppAppBar(
         title: const Text('Bilan de santé'),
-        leading: _currentIndex > 0
-            ? IconButton(onPressed: _prev, icon: const Icon(Icons.arrow_back_ios, size: 18))
-            : null,
       ),
       body: Column(
         children: [
+          Padding(padding: const EdgeInsets.all(10), child: Text(
+            'Répondez à ces questions pour évaluer votre santé ',
+            style: AppTextStyles.body.copyWith(
+              color: isDark ? AppColors.white : AppColors.textSecondary,
+              fontSize: 14,
+            ),
+          )),
           // Progress bar
           Container(
             color: isDark ? AppColors.darkSurface : AppColors.white,

@@ -5,6 +5,7 @@ import '../../../../core/utils/app_utils.dart';
 import '../../../../services/app_provider.dart';
 import '../../../../data/models/models.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
+import '../../../../shared/widgets/app_appbar.dart';
 
 class EventsPage extends StatelessWidget {
   const EventsPage({super.key});
@@ -17,10 +18,8 @@ class EventsPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
-      appBar: AppBar(
-        backgroundColor: isDark ? AppColors.darkSurface : AppColors.white,
-        title: const Text('Événements communautaires'),
-      ),
+      appBar: const AppAppBar( title: Text('Événements ',), ),
+      
       body: events.isEmpty
           ? const EmptyState(icon: Icons.event, title: 'Aucun événement')
           : ListView.separated(

@@ -5,6 +5,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/app_utils.dart';
 import '../../../../services/app_provider.dart';
 import '../../../../data/models/models.dart';
+import '../../../../shared/widgets/app_appbar.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 
 class RemindersPage extends StatefulWidget {
@@ -37,13 +38,12 @@ class _RemindersPageState extends State<RemindersPage> with SingleTickerProvider
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
-      appBar: AppBar(
-        backgroundColor: isDark ? AppColors.darkSurface : AppColors.white,
+      appBar: AppAppBar(
         title: const Text('Rappels'),
         bottom: TabBar(
           controller: _tabCtrl,
           labelStyle: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
-          labelColor: AppColors.primary,
+          labelColor: AppColors.white,
           unselectedLabelColor: AppColors.textHint,
           indicatorColor: AppColors.primary,
           tabs: [

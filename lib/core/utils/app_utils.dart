@@ -36,9 +36,9 @@ class AppUtils {
 
   /// Blood pressure status
   static String bpStatus(double systolic, double diastolic) {
-    if (systolic >= 180 || diastolic >= 120) return 'Crise hypertensive';
-    if (systolic >= 140 || diastolic >= 90) return 'Hypertension stade 2';
-    if (systolic >= 130 || diastolic >= 80) return 'Hypertension stade 1';
+    if (systolic >= 180 || diastolic >= 120) return 'Crise ';
+    if (systolic >= 140 || diastolic >= 90) return ' stade 2';
+    if (systolic >= 130 || diastolic >= 80) return ' stade 1';
     if (systolic >= 120 && diastolic < 80) return 'Élevée';
     if (systolic < 90 || diastolic < 60) return 'Hypotension';
     return 'Normale';

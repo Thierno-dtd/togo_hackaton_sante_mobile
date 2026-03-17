@@ -5,6 +5,7 @@ import '../../../../services/app_provider.dart';
 import '../../../../data/models/models.dart';
 import '../../../../data/mock/mock_data.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
+import '../../../../shared/widgets/app_appbar.dart';
 
 class AdvicePage extends StatefulWidget {
   const AdvicePage({super.key});
@@ -38,10 +39,8 @@ class _AdvicePageState extends State<AdvicePage> {
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
-      appBar: AppBar(
-        backgroundColor: isDark ? AppColors.darkSurface : AppColors.white,
+      appBar: AppAppBar(
         title: const Text('Conseils santé'),
-        elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: SizedBox(
@@ -61,7 +60,7 @@ class _AdvicePageState extends State<AdvicePage> {
                     decoration: BoxDecoration(
                       color: isSelected ? AppColors.primary : (isDark ? AppColors.darkBackground : AppColors.background),
                       borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: isSelected ? AppColors.primary : (isDark ? AppColors.darkBorder : AppColors.border)),
+                      border: Border.all(color: isSelected ? AppColors.darkBorder : (isDark ? AppColors.darkBorder : AppColors.border)),
                     ),
                     child: Row(
                       children: [

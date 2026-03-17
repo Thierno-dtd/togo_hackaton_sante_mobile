@@ -44,7 +44,7 @@ class DashboardPage extends StatelessWidget {
               preferredSize: const Size.fromHeight(40), // ajuste selon le contenu
               child: SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -70,36 +70,50 @@ class DashboardPage extends StatelessWidget {
                               ],
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Stack(
-                              children: [
-                                const Icon(Icons.notifications_outlined,
-                                    color: Colors.white, size: 22),
-                                if (provider.overdueScreening.isNotEmpty)
-                                  Positioned(
-                                    right: 0,
-                                    top: 0,
-                                    child: Container(
-                                      width: 8,
-                                      height: 8,
-                                      decoration: const BoxDecoration(
-                                          color: AppColors.warning,
-                                          shape: BoxShape.circle),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Stack(
+                                children: [
+                                  const Icon(Icons.notifications_outlined,
+                                      color: Colors.white, size: 22),
+                                  if (provider.overdueScreening.isNotEmpty)
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      child: Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: const BoxDecoration(
+                                            color: AppColors.warning,
+                                            shape: BoxShape.circle),
+                                      ),
                                     ),
-                                  ),
-                              ],
+                                    
+                                ],
+                              ),
+                            ),
+
+                          const SizedBox(width: 1),
+
+                          // Bouton Settings
+                          IconButton(
+                            onPressed: () => Navigator.pushNamed(context, '/settings'),
+                            icon: const Icon(
+                              Icons.settings_outlined,
+                              size: 22,
+                              color: Colors.white,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 5),
                       if (user.isPatient && user.diseaseType != null)
                         DiseaseTag(diseaseType: user.diseaseType!),
+                      const SizedBox(height: 11),
                     ],
                   ),
                 ),
@@ -158,7 +172,7 @@ class DashboardPage extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionHeader(title: '📊 Dernières mesures'),
+          const SectionHeader(title: ' Dernières mesures'),
           const SizedBox(height: 12),
           Row(
             children: [
