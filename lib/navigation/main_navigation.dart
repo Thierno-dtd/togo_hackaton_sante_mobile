@@ -8,7 +8,6 @@ import '../features/advice/presentation/pages/advice_page.dart';
 import '../features/self_assessment/presentation/pages/self_assessment_page.dart';
 import '../features/events/presentation/pages/events_page.dart';
 import '../features/reminders/presentation/pages/reminders_page.dart';
-import '../features/settings/presentation/pages/settings_page.dart';
 import '../features/followup/presentation/pages/followup_page.dart';
 
 class MainNavigation extends StatefulWidget {
@@ -22,7 +21,7 @@ class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
 
   List<_NavItem> _buildNavItems(bool isPatient) {
-    final items = [
+    return [
       _NavItem(
         icon: Icons.home_outlined,
         activeIcon: Icons.home_rounded,
@@ -60,14 +59,7 @@ class _MainNavigationState extends State<MainNavigation> {
           label: 'Suivi',
           page: const FollowUpPage(),
         ),
-      _NavItem(
-        icon: Icons.settings_outlined,
-        activeIcon: Icons.settings_rounded,
-        label: 'Paramètres',
-        page: const SettingsPage(),
-      ),
     ];
-    return items;
   }
 
   @override
@@ -81,7 +73,8 @@ class _MainNavigationState extends State<MainNavigation> {
     final safeIndex = _selectedIndex.clamp(0, navItems.length - 1);
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
+      backgroundColor:
+          isDark ? AppColors.darkBackground : AppColors.background,
       body: IndexedStack(
         index: safeIndex,
         children: navItems.map((e) => e.page).toList(),
@@ -99,26 +92,33 @@ class _MainNavigationState extends State<MainNavigation> {
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: GNav(
               selectedIndex: safeIndex,
-              onTabChange: (index) => setState(() => _selectedIndex = index),
+              onTabChange: (index) =>
+                  setState(() => _selectedIndex = index),
               gap: 4,
-              color: isDark ? AppColors.darkTextSecondary : AppColors.textHint,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textHint,
               activeColor: AppColors.white,
               tabBackgroundColor: AppColors.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 10),
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
-              tabs: navItems.map((item) => GButton(
-                icon: item.icon,
-                text: item.label,
-                iconActiveColor: AppColors.white,
-                textStyle: AppTextStyles.caption.copyWith(
-                  color: AppColors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-              )).toList(),
+              tabs: navItems
+                  .map((item) => GButton(
+                        icon: item.icon,
+                        text: item.label,
+                        iconActiveColor: AppColors.white,
+                        textStyle: AppTextStyles.caption.copyWith(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ))
+                  .toList(),
             ),
           ),
         ),

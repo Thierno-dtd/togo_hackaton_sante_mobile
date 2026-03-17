@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'services/app_provider.dart';
 import 'features/auth/presentation/pages/login_page.dart';
+import 'features/settings/presentation/pages/settings_page.dart';
 import 'navigation/main_navigation.dart';
 
 void main() {
@@ -11,7 +12,7 @@ void main() {
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.dark,
+    statusBarIconBrightness: Brightness.light,
   ));
   runApp(
     ChangeNotifierProvider(
@@ -34,6 +35,9 @@ class LamesseDamaApp extends StatelessWidget {
       themeMode: provider.themeMode,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
+      routes: {
+        '/settings': (_) => const SettingsPage(),
+      },
       home: _AppRoot(),
     );
   }
@@ -53,7 +57,6 @@ class _AppRoot extends StatelessWidget {
 }
 
 // ─── App Lock Gate ───
-// Shown when user returns to app and lock is enabled
 class _AppLockGate extends StatefulWidget {
   const _AppLockGate();
 
@@ -61,7 +64,8 @@ class _AppLockGate extends StatefulWidget {
   State<_AppLockGate> createState() => _AppLockGateState();
 }
 
-class _AppLockGateState extends State<_AppLockGate> with WidgetsBindingObserver {
+class _AppLockGateState extends State<_AppLockGate>
+    with WidgetsBindingObserver {
   bool _isLocked = false;
 
   @override
@@ -88,7 +92,8 @@ class _AppLockGateState extends State<_AppLockGate> with WidgetsBindingObserver 
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
     if (_isLocked && provider.appLockEnabled) {
-      return _AppLockScreen(onUnlock: () => setState(() => _isLocked = false));
+      return _AppLockScreen(
+          onUnlock: () => setState(() => _isLocked = false));
     }
     return const MainNavigation();
   }
@@ -131,16 +136,17 @@ class _AppLockScreenState extends State<_AppLockScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
+      backgroundColor:
+          isDark ? AppColors.darkBackground : AppColors.background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo
               Container(
-                width: 80, height: 80,
+                width: 80,
+                height: 80,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [AppColors.primary, Color(0xFF1e4060)],
@@ -151,39 +157,50 @@ class _AppLockScreenState extends State<_AppLockScreen> {
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.primary.withOpacity(0.3),
-                      blurRadius: 20, offset: const Offset(0, 8),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
-                child: const Icon(Icons.monitor_heart_rounded, color: Colors.white, size: 40),
+                child: const Icon(Icons.monitor_heart_rounded,
+                    color: Colors.white, size: 40),
               ),
               const SizedBox(height: 24),
-              Text('Application verrouillée',
+              Text(
+                'Application verrouillée',
                 style: AppTextStyles.h3.copyWith(
-                  color: isDark ? AppColors.darkText : AppColors.textPrimary)),
+                    color: isDark
+                        ? AppColors.darkText
+                        : AppColors.textPrimary),
+              ),
               const SizedBox(height: 8),
-              Text('Entrez votre mot de passe pour continuer',
+              Text(
+                'Entrez votre mot de passe pour continuer',
                 style: AppTextStyles.bodySmall,
-                textAlign: TextAlign.center),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 40),
-
-              // Password field
               TextField(
                 controller: _passwordCtrl,
                 obscureText: _obscure,
                 onSubmitted: (_) => _tryUnlock(),
                 decoration: InputDecoration(
                   hintText: 'Mot de passe',
-                  prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                  prefixIcon:
+                      const Icon(Icons.lock_outline, size: 20),
                   suffixIcon: IconButton(
-                    onPressed: () => setState(() => _obscure = !_obscure),
-                    icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18),
+                    onPressed: () =>
+                        setState(() => _obscure = !_obscure),
+                    icon: Icon(
+                        _obscure
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        size: 18),
                   ),
                   errorText: _error,
                 ),
               ),
               const SizedBox(height: 20),
-
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -192,21 +209,25 @@ class _AppLockScreenState extends State<_AppLockScreen> {
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
                   ),
                   icon: const Icon(Icons.lock_open_outlined, size: 18),
-                  label: Text('Déverrouiller',
-                    style: AppTextStyles.button.copyWith(color: Colors.white)),
+                  label: Text(
+                    'Déverrouiller',
+                    style: AppTextStyles.button
+                        .copyWith(color: Colors.white),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
-
               TextButton(
-                onPressed: () {
-                  context.read<AppProvider>().logout();
-                },
-                child: Text('Se déconnecter',
-                  style: AppTextStyles.body.copyWith(color: AppColors.textHint)),
+                onPressed: () => context.read<AppProvider>().logout(),
+                child: Text(
+                  'Se déconnecter',
+                  style: AppTextStyles.body
+                      .copyWith(color: AppColors.textHint),
+                ),
               ),
             ],
           ),

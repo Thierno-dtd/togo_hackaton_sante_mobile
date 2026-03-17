@@ -21,12 +21,14 @@ class DashboardPage extends StatelessWidget {
       body: CustomScrollView(
         slivers: [
           // ─ Hero App Bar ─
-          SliverAppBar(
+         SliverAppBar(
             expandedHeight: 200,
             pinned: true,
+            floating: false,
             elevation: 0,
             backgroundColor: AppColors.primary,
             flexibleSpace: FlexibleSpaceBar(
+              collapseMode: CollapseMode.pin,
               background: Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
@@ -35,65 +37,77 @@ class DashboardPage extends StatelessWidget {
                     colors: [AppColors.primary, Color(0xFF1E4060)],
                   ),
                 ),
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 24,
-                              backgroundColor: Colors.white.withOpacity(0.2),
-                              child: Text(user.initials, style: AppTextStyles.h4.copyWith(color: Colors.white)),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Bonjour, ${user.firstName} 👋',
+              ),
+            ),
+            // ← Sticky Hero content
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(40), // ajuste selon le contenu
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 24,
+                            backgroundColor: Colors.white.withOpacity(0.2),
+                            child: Text(user.initials,
+                                style: AppTextStyles.h4.copyWith(color: Colors.white)),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Bonjour, ${user.firstName} 👋',
                                     style: AppTextStyles.h3.copyWith(color: Colors.white)),
-                                  const SizedBox(height: 2),
-                                  Text('$age ans • ${user.district}',
-                                    style: AppTextStyles.bodySmall.copyWith(color: Colors.white.withOpacity(0.7))),
-                                ],
-                              ),
+                                const SizedBox(height: 2),
+                                Text('$age ans • ${user.district}',
+                                    style: AppTextStyles.bodySmall.copyWith(
+                                        color: Colors.white.withOpacity(0.7))),
+                              ],
                             ),
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Stack(
-                                children: [
-                                  const Icon(Icons.notifications_outlined, color: Colors.white, size: 22),
-                                  if (provider.overdueScreening.isNotEmpty)
-                                    Positioned(
-                                      right: 0, top: 0,
-                                      child: Container(
-                                        width: 8, height: 8,
-                                        decoration: const BoxDecoration(color: AppColors.warning, shape: BoxShape.circle),
-                                      ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Stack(
+                              children: [
+                                const Icon(Icons.notifications_outlined,
+                                    color: Colors.white, size: 22),
+                                if (provider.overdueScreening.isNotEmpty)
+                                  Positioned(
+                                    right: 0,
+                                    top: 0,
+                                    child: Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: const BoxDecoration(
+                                          color: AppColors.warning,
+                                          shape: BoxShape.circle),
                                     ),
-                                ],
-                              ),
+                                  ),
+                              ],
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        if (user.isPatient && user.diseaseType != null)
-                          DiseaseTag(diseaseType: user.diseaseType!),
-                      ],
-                    ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (user.isPatient && user.diseaseType != null)
+                        DiseaseTag(diseaseType: user.diseaseType!),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
 
+          
           SliverPadding(
             padding: const EdgeInsets.all(20),
             sliver: SliverList(
