@@ -470,13 +470,17 @@ class MedicationTab extends StatelessWidget {
                             : AppColors.success,
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        'Stock: ${medication.stock} unité(s) • ${medication.daysRemaining}j restant(s)',
-                        style: AppTextStyles.caption.copyWith(
-                          color: medication.needsRenewal
-                              ? AppColors.warning
-                              : AppColors.success,
-                          fontWeight: FontWeight.w600,
+
+                      Expanded(
+                        child: Text(
+                          'Stock: ${medication.stock} unité(s) • ${medication.daysRemaining}j restant(s)',
+                          style: AppTextStyles.caption.copyWith(
+                            color: medication.needsRenewal
+                                ? AppColors.warning
+                                : AppColors.success,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -1125,7 +1129,7 @@ class _AddPrescriptionSheetState extends State<AddPrescriptionSheet> {
 
           const SizedBox(height: 28),
           PrimaryButton(
-            label: 'Continuer — Ajouter les médicaments',
+            label: ' Ajouter les médicaments',
             onPressed: _savePrescription,
             icon: Icons.arrow_forward,
             color: AppColors.primary,

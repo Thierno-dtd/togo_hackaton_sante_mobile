@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lamesse_dama_mobile/features/events/presentation/pages/events_page.dart';
+import 'package:lamesse_dama_mobile/features/followup/presentation/pages/followup_page.dart';
+import 'package:lamesse_dama_mobile/features/reminders/presentation/pages/reminders_page.dart';
 import 'features/notifications/presentation/pages/notifications_page.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
@@ -39,6 +42,9 @@ class LamesseDamaApp extends StatelessWidget {
       routes: {
         '/settings': (_) => const SettingsPage(),
          '/notifications': (_) => const NotificationsPage(),
+         '/reminders': (_) => const RemindersPage(),
+         '/followup': (_) => const FollowUpPage(),
+         '/events': (_) => const EventsPage(),
       },
       home: _AppRoot(),
     );

@@ -11,7 +11,10 @@ import '../features/reminders/presentation/pages/reminders_page.dart';
 import '../features/followup/presentation/pages/followup_page.dart';
 
 class MainNavigation extends StatefulWidget {
-  const MainNavigation({super.key});
+  final int initialIndex;
+  final int? initialReminderTab;
+
+  const MainNavigation({super.key, this.initialIndex = 0, this.initialReminderTab,});
 
   @override
   State<MainNavigation> createState() => _MainNavigationState();
@@ -19,6 +22,12 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex;
+  }
 
   List<_NavItem> _buildNavItems(bool isPatient) {
     return [
@@ -50,7 +59,7 @@ class _MainNavigationState extends State<MainNavigation> {
         icon: Icons.notifications_outlined,
         activeIcon: Icons.notifications_rounded,
         label: 'Rappels',
-        page: const RemindersPage(),
+        page: RemindersPage(initialTab: widget.initialReminderTab ?? 0,),
       ),
       if (isPatient)
         _NavItem(

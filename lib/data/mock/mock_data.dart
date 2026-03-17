@@ -90,14 +90,14 @@ class MockData {
       description: 'Une matinée de sport et de bien-être pour tous les habitants du quartier. Activités : marche, aerobics, yoga, et jeux collectifs. Venez en famille !',
       date: DateTime.now().add(const Duration(days: 3)),
       time: const TimeOfDay(hour: 7, minute: 0),
-      location: 'Stade municipal de Cocody', organizer: 'Mairie de Cocody', category: 'sport',
+      location: 'Stade municipal de Logopé', organizer: 'Mairie de Agoè-Nyivé', category: 'sport',
     ),
     EventModel(
       id: 'e2', title: 'Dépistage gratuit hypertension & diabète',
       description: 'Campagne de dépistage gratuite organisée par le CHU de Treichville. Tests de glycémie, mesure de tension artérielle et consultations gratuites.',
       date: DateTime.now().add(const Duration(days: 7)),
       time: const TimeOfDay(hour: 8, minute: 30),
-      location: 'CHU de Treichville, Pavillon A', organizer: 'CHU Treichville', category: 'health',
+      location: 'Université de Lomé', organizer: 'CHU Tokoin', category: 'health',
       maxParticipants: 200,
     ),
     EventModel(
@@ -112,7 +112,7 @@ class MockData {
       description: 'Une conférence pour comprendre le lien entre alimentation et maladies cardiovasculaires. Avec Pr. Koffi Amoussou, cardiologue.',
       date: DateTime.now().add(const Duration(days: 10)),
       time: const TimeOfDay(hour: 15, minute: 0),
-      location: 'Salle des fêtes de Marcory', organizer: 'Association Cœur Sain', category: 'awareness',
+      location: 'Salle des fêtes de CCL', organizer: 'Association Cœur Sain', category: 'awareness',
     ),
     EventModel(
       id: 'e5', title: 'Marathon de la santé - 5km pour tous',
@@ -127,7 +127,7 @@ class MockData {
       description: 'Apprenez à cuisiner des repas délicieux adaptés aux diabétiques. Démonstration par une diététicienne et dégustation incluses.',
       date: DateTime.now().add(const Duration(days: 6)),
       time: const TimeOfDay(hour: 10, minute: 0),
-      location: 'Centre communautaire de Yopougon', organizer: 'Association Diabète CI', category: 'health',
+      location: 'Centre communautaire de Kodjoviakopé', organizer: 'Association Diabète CI', category: 'health',
     ),
   ];
 
@@ -349,11 +349,11 @@ class MockData {
 
   // ─── Mock Hospitals ───
   static const List<Hospital> hospitals = [
-    Hospital(id: 'h1', name: 'CHU de Treichville', address: 'Avenue 24, Treichville', district: 'Treichville', phone: '+225 27 21 24 92 00'),
-    Hospital(id: 'h2', name: 'CHU de Cocody', address: 'Bd de l\'Université, Cocody', district: 'Cocody', phone: '+225 27 22 44 06 66'),
-    Hospital(id: 'h3', name: 'Polyclinique Internationale Sainte Anne-Marie', address: 'Cocody, Abidjan', district: 'Cocody', phone: '+225 27 22 41 11 11'),
-    Hospital(id: 'h4', name: 'Hôpital Général de Yopougon', address: 'Yopougon, Abidjan', district: 'Yopougon', phone: '+225 27 23 47 11 11'),
-    Hospital(id: 'h5', name: 'Clinique du Plateau', address: 'Plateau, Abidjan', district: 'Plateau', phone: '+225 27 20 31 54 40'),
+    Hospital(id: 'h1', name: 'Dokita Lafia', address: 'Agoè Zongo, Lomé', district: 'Agoè', phone: '+228 99 99 92 00'),
+    Hospital(id: 'h2', name: 'CHU de Tokoin', address: 'Bd de l\'Université de Lomé, Lomé', district: 'Lomé', phone: '+228 22 22 06 66'),
+    Hospital(id: 'h3', name: 'Polyclinique Internationale Sainte Anne-Marie', address: 'Lomé, Lomé', district: 'Lomé', phone: '+228 97 97 11 11'),
+    Hospital(id: 'h4', name: 'Hôpital Général de Logopé', address: 'Logopé, Lomé', district: 'Lomé', phone: '+228 93 47 11 11'),
+    Hospital(id: 'h5', name: 'Clinique du Plateau', address: 'Plateau, Lomé', district: 'Plateau', phone: '+228 91 10 10 40'),
   ];
 
   // ─── Mock user ───
@@ -362,10 +362,10 @@ class MockData {
     firstName: 'Bima',
     lastName: 'Afi',
     email: 'bima.afi@email.com',
-    phone: '+225 07 00 00 00',
+    phone: '+228 91 56 78 00',
     dateOfBirth: DateTime(1985, 6, 15),
-    residence: 'Abidjan',
-    district: 'Cocody',
+    residence: 'LOmé',
+    district: 'Agoe',
     healthStatus: 'patient',
     diseaseType: 'hypertension',
     weight: 75.0,
@@ -377,10 +377,10 @@ class MockData {
     firstName: 'Konan',
     lastName: 'Marie',
     email: 'konan.marie@email.com',
-    phone: '+225 05 00 00 00',
-    dateOfBirth: DateTime(1992, 3, 20),
-    residence: 'Abidjan',
-    district: 'Marcory',
+    phone: '+228 91 30 74 81',
+    dateOfBirth: DateTime(2000, 3, 20),
+    residence: 'Lomé',
+    district: 'Segbé',
     healthStatus: 'non_patient',
   );
 
@@ -412,7 +412,7 @@ class MockData {
       NotificationModel(
         id: const Uuid().v4(),
         title: 'Rendez-vous médical',
-        body: 'Le Dr. Kouassi vous demande de venir à l\'hôpital ce jeudi à 10h. En cas d\'empêchement, contactez le +225 27 22 44 06 66.',
+        body: 'Le Dr. Kouassi vous demande de venir à l\'hôpital ce jeudi à 10h. En cas d\'empêchement, contactez le +228 93 93 06 66.',
         type: NotificationType.doctorAppointment,
         createdAt: now.subtract(const Duration(days: 1)),
       ),

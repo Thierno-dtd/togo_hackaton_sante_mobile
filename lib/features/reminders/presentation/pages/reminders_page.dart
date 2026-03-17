@@ -10,7 +10,8 @@ import '../../../../shared/widgets/app_appbar.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
 
 class RemindersPage extends StatefulWidget {
-  const RemindersPage({super.key});
+  final int initialTab;
+  const RemindersPage({super.key, this.initialTab = 0});
   @override
   State<RemindersPage> createState() => _RemindersPageState();
 }
@@ -22,7 +23,7 @@ class _RemindersPageState extends State<RemindersPage> with SingleTickerProvider
   void initState() {
     super.initState();
     final provider = context.read<AppProvider>();
-    _tabCtrl = TabController(length: provider.isPatient ? 3 : 1, vsync: this);
+    _tabCtrl = TabController(length: provider.isPatient ? 3 : 1, vsync: this, initialIndex: widget.initialTab);
   }
 
   @override

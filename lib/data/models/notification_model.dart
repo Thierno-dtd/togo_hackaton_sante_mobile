@@ -70,7 +70,7 @@ class NotificationModel {
   Color get color {
     switch (type) {
     case NotificationType.medicationReminder:
-    return const Color(0xFF163344);
+    return const Color.fromARGB(255, 56, 106, 135);
     case NotificationType.medicationRenewal:
     return const Color(0xFFF59E0B);
     case NotificationType.missedMeasurement:

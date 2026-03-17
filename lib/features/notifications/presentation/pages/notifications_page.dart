@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../navigation/main_navigation.dart';
 import '../../../../services/app_provider.dart';
-import '../../../../services/notification_service.dart';
 import '../../../../data/models/notification_model.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
-import '../../../../shared/widgets/app_appbar.dart';
+
 class NotificationsPage extends StatefulWidget {
 const NotificationsPage({super.key});
 @override
@@ -32,7 +32,7 @@ final isDark = Theme.of(context).brightness == Brightness.dark;
 return Scaffold(
   backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
   appBar: AppBar(
-    title: const Text('Notifications',),
+    title: const Text('Notifications', ),
     titleTextStyle: AppTextStyles.h4.copyWith(color: Colors.white),
      iconTheme: const IconThemeData(
         color: Colors.white,
@@ -205,8 +205,8 @@ return Dismissible(
                   : AppColors.textSecondary,
               height: 1.5,
             ),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
+            //maxLines: 3,
+            //overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -219,19 +219,44 @@ void _handleNotificationTap(BuildContext context, NotificationModel notification
 switch (notification.type) {
 case NotificationType.medicationReminder:
 case NotificationType.medicationRenewal:
-Navigator.pushNamed(context, '/reminders');
+  Navigator.pushAndRemoveUntil(
+  context,
+  MaterialPageRoute(
+    builder: (_) => const MainNavigation(initialIndex: 4, initialReminderTab: 1,),
+  ),
+  (route) => false,
+);
 break;
 case NotificationType.missedMeasurement:
-case NotificationType.doctorAppointment:
+
 if (context.read<AppProvider>().isPatient) {
-Navigator.pushNamed(context, '/followup');
+Navigator.pushAndRemoveUntil(
+  context,
+  MaterialPageRoute(
+    builder: (_) => const MainNavigation(initialIndex: 5),
+  ),
+  (route) => false,
+);
 }
 break;
 case NotificationType.screeningReminder:
-Navigator.pushNamed(context, '/reminders');
+case NotificationType.doctorAppointment:
+  Navigator.pushAndRemoveUntil(
+  context,
+  MaterialPageRoute(
+    builder: (_) => const MainNavigation(initialIndex: 4, initialReminderTab: 2,),
+  ),
+  (route) => false,
+);
 break;
 case NotificationType.eventReminder:
-Navigator.pushNamed(context, '/events');
+  Navigator.pushAndRemoveUntil(
+  context,
+  MaterialPageRoute(
+    builder: (_) => const MainNavigation(initialIndex: 3),
+  ),
+  (route) => false,
+);
 break;
 default:
 break;

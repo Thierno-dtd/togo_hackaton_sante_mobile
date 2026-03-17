@@ -313,4 +313,11 @@ class AppProvider extends ChangeNotifier {
     return grouped;
   }
 
+  void updateUserLocation(String gpsLocation) {
+    if (_currentUser != null) {
+      _currentUser = _currentUser!.copyWith(gpsLocation: gpsLocation);
+      notifyListeners();
+    }
+  }
+
 }

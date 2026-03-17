@@ -6,15 +6,17 @@ class SectionHeader extends StatelessWidget {
   final String title;
   final String? actionLabel;
   final VoidCallback? onAction;
+  
 
   const SectionHeader({super.key, required this.title, this.actionLabel, this.onAction});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: AppTextStyles.h4),
+        Text(title, style: AppTextStyles.h4.copyWith(color: (isDark ? AppColors.white : AppColors.primary))),
         if (actionLabel != null)
           GestureDetector(
             onTap: onAction,

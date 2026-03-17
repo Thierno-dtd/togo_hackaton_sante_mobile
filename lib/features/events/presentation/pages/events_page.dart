@@ -81,10 +81,14 @@ class EventsPage extends StatelessWidget {
           const SizedBox(height: 12),
 
           // Details
-          Text(event.description, style: AppTextStyles.body.copyWith(
-            color: dark ? AppColors.darkTextSecondary : AppColors.textSecondary, height: 1.5,
-          ), maxLines: 3, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 14),
+          Text(
+  event.description,
+  style: AppTextStyles.body.copyWith(
+    color: dark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+    height: 1.5,
+  ),
+),
+const SizedBox(height: 14),
 
           // Info rows
           _infoChip(Icons.calendar_today, AppUtils.formatDate(event.date), dark),
