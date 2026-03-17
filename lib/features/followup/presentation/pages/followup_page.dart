@@ -309,13 +309,13 @@ class _ChartsTab extends StatelessWidget {
       minY: 60, maxY: 180,
       lineBarsData: [
         LineChartBarData(
-          spots: spots1, color: AppColors.hypertension, strokeWidth: 2.5,
+          spots: spots1, color: AppColors.hypertension, barWidth: 2.5,
           dotData: FlDotData(getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
             radius: 4, color: AppColors.hypertension, strokeWidth: 2, strokeColor: Colors.white)),
           belowBarData: BarAreaData(show: true, color: AppColors.hypertension.withOpacity(0.08)),
         ),
         LineChartBarData(
-          spots: spots2, color: AppColors.primary, strokeWidth: 2.5,
+          spots: spots2, color: AppColors.primary, barWidth: 2.5,
           dotData: FlDotData(getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
             radius: 4, color: AppColors.primary, strokeWidth: 2, strokeColor: Colors.white)),
           belowBarData: BarAreaData(show: true, color: AppColors.primary.withOpacity(0.06)),
@@ -362,7 +362,7 @@ class _ChartsTab extends StatelessWidget {
       borderData: FlBorderData(show: false),
       lineBarsData: [
         LineChartBarData(
-          spots: spots, color: AppColors.info, strokeWidth: 2.5,
+          spots: spots, color: AppColors.info, barWidth: 2.5,
           dotData: FlDotData(getDotPainter: (spot, _, __, ___) {
             final color = AppUtils.glucoseColor(spot.y);
             return FlDotCirclePainter(radius: 5, color: color, strokeWidth: 2, strokeColor: Colors.white);
@@ -415,7 +415,7 @@ class _ChartsTab extends StatelessWidget {
               borderData: FlBorderData(show: false),
               lineBarsData: [
                 LineChartBarData(
-                  spots: spots, color: color, strokeWidth: 2,
+                  spots: spots, color: color, barWidth: 2,
                   dotData: const FlDotData(show: false),
                   belowBarData: BarAreaData(show: true, color: color.withOpacity(0.1)),
                 ),

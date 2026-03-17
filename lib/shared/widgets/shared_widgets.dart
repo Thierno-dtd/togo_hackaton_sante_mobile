@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import '../core/theme/app_theme.dart';
-import '../core/utils/app_utils.dart';
+import '../../core/theme/app_theme.dart';
 
 // ─── Section Header ───
 class SectionHeader extends StatelessWidget {

@@ -103,11 +103,11 @@ class _MainNavigationState extends State<MainNavigation> {
             child: GNav(
               selectedIndex: safeIndex,
               onTabChange: (index) => setState(() => _selectedIndex = index),
-              gap: 6,
+              gap: 4,
               color: isDark ? AppColors.darkTextSecondary : AppColors.textHint,
               activeColor: AppColors.white,
               tabBackgroundColor: AppColors.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
               tabs: navItems.map((item) => GButton(
