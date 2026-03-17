@@ -133,17 +133,15 @@ class ScreeningReminder {
   final DateTime dueDate;
   bool isCompleted;
   final String frequency; // annual | biannual | quarterly | monthly
-
   ScreeningReminder({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.dueDate,
-    this.isCompleted = false,
-    required this.frequency,
+  required this.id,
+  required this.title,
+  required this.description,
+  required this.dueDate,
+  this.isCompleted = false,
+  required this.frequency,
   });
 }
-
 class MedicationReminder {
   final String id;
   final String medicationName;
@@ -153,7 +151,8 @@ class MedicationReminder {
   final int renewalAlertThreshold;
   final bool isActive;
   final String diseaseType;
-
+  String? prescriptionId; 
+  
   MedicationReminder({
     required this.id,
     required this.medicationName,
@@ -163,11 +162,15 @@ class MedicationReminder {
     required this.renewalAlertThreshold,
     this.isActive = true,
     required this.diseaseType,
+    this.prescriptionId, 
   });
-
-  bool get needsRenewal => stock <= renewalAlertThreshold;
+    bool get needsRenewal => stock <= renewalAlertThreshold;
+    int get daysRemaining {
+    final dailyConsumption = intakeTimes.length;
+    if (dailyConsumption == 0) return 0;
+    return (stock / dailyConsumption).floor();
+  }
 }
-
 class SimpleReminder {
   final String id;
   final String label;
@@ -182,6 +185,31 @@ class SimpleReminder {
     required this.time,
     this.isCompleted = false,
   });
+}
+
+// ─── NOUVEAU MODÈLE ───
+class Prescription {
+  final String id;
+  final String reference;
+  final String? imageUrl;
+  final String? imageLocalPath;
+  final DateTime prescriptionDate;
+  final String doctorName;
+  final String? hospital;
+  final DateTime createdAt;
+
+  const Prescription({
+    required this.id,
+    required this.reference,
+    this.imageUrl,
+    this.imageLocalPath,
+    required this.prescriptionDate,
+    required this.doctorName,
+    this.hospital,
+    required this.createdAt,
+  });
+
+  bool get hasImage => imageUrl != null || imageLocalPath != null;
 }
 
 // ─── Self Assessment Models ───

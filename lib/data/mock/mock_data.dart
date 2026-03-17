@@ -247,21 +247,7 @@ class MockData {
     ),
   ];
 
-  // ─── Mock Medication Reminders (Patient) ───
-  static List<MedicationReminder> defaultMedicationReminders = [
-    MedicationReminder(
-      id: 'mr1', medicationName: 'Amlodipine',
-      dosage: '5mg', intakeTimes: [const TimeOfDay(hour: 7, minute: 30)],
-      stock: 14, renewalAlertThreshold: 7, diseaseType: 'hypertension',
-    ),
-    MedicationReminder(
-      id: 'mr2', medicationName: 'Metformine',
-      dosage: '500mg',
-      intakeTimes: [const TimeOfDay(hour: 7, minute: 0), const TimeOfDay(hour: 19, minute: 0)],
-      stock: 5, renewalAlertThreshold: 7, diseaseType: 'diabetes',
-    ),
-  ];
-
+  
   // ─── Mock Simple Reminders ───
   static List<SimpleReminder> defaultSimpleReminders = [
     SimpleReminder(
@@ -400,60 +386,108 @@ class MockData {
 
 
   static List<NotificationModel> generateMockNotifications() {
-final now = DateTime.now();
-return [
-  NotificationModel(
-    id: const Uuid().v4(),
-    title: 'Prise de médicament',
-    body: 'Il est temps de prendre votre Amlodipine 5mg',
-    type: NotificationType.medicationReminder,
-    createdAt: now.subtract(const Duration(minutes: 20)),
-  ),
-  NotificationModel(
-    id: const Uuid().v4(),
-    title: 'Stock faible',
-    body: 'Il vous reste seulement 5 unités de Metformine. Pensez à renouveler votre ordonnance.',
-    type: NotificationType.medicationRenewal,
-    createdAt: now.subtract(const Duration(hours: 2)),
-  ),
-  NotificationModel(
-    id: const Uuid().v4(),
-    title: 'Mesure manquée',
-    body: 'Vous n\'avez pas effectué votre mesure de glycémie de ce matin',
-    type: NotificationType.missedMeasurement,
-    createdAt: now.subtract(const Duration(hours: 3)),
-  ),
-  NotificationModel(
-    id: const Uuid().v4(),
-    title: 'Rendez-vous médical',
-    body: 'Le Dr. Kouassi vous demande de venir à l\'hôpital ce jeudi à 10h. En cas d\'empêchement, contactez le +225 27 22 44 06 66.',
-    type: NotificationType.doctorAppointment,
-    createdAt: now.subtract(const Duration(days: 1)),
-  ),
-  NotificationModel(
-    id: const Uuid().v4(),
-    title: 'Rendez-vous imminent',
-    body: 'Votre consultation de routine est dans 2 jours (Vendredi 10h)',
-    type: NotificationType.doctorAppointment,
-    createdAt: now.subtract(const Duration(days: 1, hours: 5)),
-    isRead: true,
-  ),
-  NotificationModel(
-    id: const Uuid().v4(),
-    title: 'Dépistage à venir',
-    body: 'Bilan sanguin annuel prévu dans 7 jours',
-    type: NotificationType.screeningReminder,
-    createdAt: now.subtract(const Duration(days: 2)),
-    isRead: true,
-  ),
-  NotificationModel(
-    id: const Uuid().v4(),
-    title: 'Nouvel événement',
-    body: 'Journée sportive communautaire dans 3 jours',
-    type: NotificationType.eventReminder,
-    createdAt: now.subtract(const Duration(days: 3)),
-    isRead: true,
-  ),
-];
-}
+    final now = DateTime.now();
+    return [
+      NotificationModel(
+        id: const Uuid().v4(),
+        title: 'Prise de médicament',
+        body: 'Il est temps de prendre votre Amlodipine 5mg',
+        type: NotificationType.medicationReminder,
+        createdAt: now.subtract(const Duration(minutes: 20)),
+      ),
+      NotificationModel(
+        id: const Uuid().v4(),
+        title: 'Stock faible',
+        body: 'Il vous reste seulement 5 unités de Metformine. Pensez à renouveler votre ordonnance.',
+        type: NotificationType.medicationRenewal,
+        createdAt: now.subtract(const Duration(hours: 2)),
+      ),
+      NotificationModel(
+        id: const Uuid().v4(),
+        title: 'Mesure manquée',
+        body: 'Vous n\'avez pas effectué votre mesure de glycémie de ce matin',
+        type: NotificationType.missedMeasurement,
+        createdAt: now.subtract(const Duration(hours: 3)),
+      ),
+      NotificationModel(
+        id: const Uuid().v4(),
+        title: 'Rendez-vous médical',
+        body: 'Le Dr. Kouassi vous demande de venir à l\'hôpital ce jeudi à 10h. En cas d\'empêchement, contactez le +225 27 22 44 06 66.',
+        type: NotificationType.doctorAppointment,
+        createdAt: now.subtract(const Duration(days: 1)),
+      ),
+      NotificationModel(
+        id: const Uuid().v4(),
+        title: 'Rendez-vous imminent',
+        body: 'Votre consultation de routine est dans 2 jours (Vendredi 10h)',
+        type: NotificationType.doctorAppointment,
+        createdAt: now.subtract(const Duration(days: 1, hours: 5)),
+        isRead: true,
+      ),
+      NotificationModel(
+        id: const Uuid().v4(),
+        title: 'Dépistage à venir',
+        body: 'Bilan sanguin annuel prévu dans 7 jours',
+        type: NotificationType.screeningReminder,
+        createdAt: now.subtract(const Duration(days: 2)),
+        isRead: true,
+      ),
+      NotificationModel(
+        id: const Uuid().v4(),
+        title: 'Nouvel événement',
+        body: 'Journée sportive communautaire dans 3 jours',
+        type: NotificationType.eventReminder,
+        createdAt: now.subtract(const Duration(days: 3)),
+        isRead: true,
+      ),
+    ];
+  }
+
+  static List<Prescription> mockPrescriptions = [
+    Prescription(
+      id: 'rx1',
+      reference: 'ORD-2024-001',
+      imageLocalPath: null,
+      prescriptionDate: DateTime.now().subtract(const Duration(days: 15)),
+      doctorName: 'Dr. Kouassi',
+      hospital: 'CHU de Cocody',
+      createdAt: DateTime.now().subtract(const Duration(days: 15)),
+    ),
+
+    Prescription(
+      id: 'rx2',
+      reference: 'ORD-2024-002',
+      prescriptionDate: DateTime.now().subtract(const Duration(days: 7)),
+      doctorName: 'Dr. Amoussou',
+      hospital: 'CHU de Treichville',
+      createdAt: DateTime.now().subtract(const Duration(days: 7)),
+    ),
+  ];
+    // Mettre à jour defaultMedicationReminders
+  static List<MedicationReminder> defaultMedicationReminders = [
+    MedicationReminder(
+      id: 'mr1',
+      medicationName: 'Amlodipine',
+      dosage: '5mg',
+      intakeTimes: [const TimeOfDay(hour: 7, minute: 30)],
+      stock: 14,
+      renewalAlertThreshold: 7,
+      diseaseType: 'hypertension',
+      prescriptionId: 'rx1', // ← Lier à l'ordonnance
+    ),
+
+    MedicationReminder(
+      id: 'mr2',
+      medicationName: 'Metformine',
+      dosage: '500mg',
+      intakeTimes: [
+      const TimeOfDay(hour: 7, minute: 0),
+      const TimeOfDay(hour: 19, minute: 0),
+      ],
+      stock: 5,
+      renewalAlertThreshold: 7,
+      diseaseType: 'diabetes',
+      prescriptionId: 'rx2', // ← Lier à l'ordonnance
+      ),
+  ];
 }

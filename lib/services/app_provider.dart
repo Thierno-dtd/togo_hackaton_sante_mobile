@@ -102,6 +102,7 @@ class AppProvider extends ChangeNotifier {
   void loadMockReminders() {
     _screeningReminders = MockData.defaultScreeningReminders;
     if (isPatient) {
+      loadMockPrescriptions();
       _medicationReminders = MockData.defaultMedicationReminders;
       _simpleReminders = MockData.defaultSimpleReminders;
     }
@@ -245,6 +246,60 @@ class AppProvider extends ChangeNotifier {
     await scheduleAllReminders();
     
     notifyListeners();
+  }
+
+   // ─── Prescriptions ───
+  List<Prescription> _prescriptions = [];
+  List<Prescription> get prescriptions => _prescriptions;
+
+  // Obtenir les médicaments par ordonnance
+  List<MedicationReminder> getMedicationsByPrescription(String prescriptionId) {
+    return _medicationReminders
+        .where((m) => m.prescriptionId == prescriptionId)
+        .toList();
+  }
+
+  // Obtenir l'ordonnance d'un médicament
+  Prescription? getPrescriptionForMedication(MedicationReminder medication) {
+    if (medication.prescriptionId == null) return null;
+    return _prescriptions.firstWhere(
+      (p) => p.id == medication.prescriptionId,
+      orElse: () => _prescriptions.first, // Fallback
+    );
+  }
+
+  void loadMockPrescriptions() {
+    _prescriptions = MockData.mockPrescriptions;
+    notifyListeners();
+  }
+
+  void addPrescription(Prescription prescription) {
+    _prescriptions.insert(0, prescription);
+    notifyListeners();
+  }
+
+  void deletePrescription(String prescriptionId) {
+    _prescriptions.removeWhere((p) => p.id == prescriptionId);
+    // Supprimer aussi les médicaments liés
+    _medicationReminders.removeWhere((m) => m.prescriptionId == prescriptionId);
+    notifyListeners();
+  }
+
+ 
+
+  // Méthode helper pour grouper les médicaments par ordonnance
+  Map<String, List<MedicationReminder>> get medicationsByPrescription {
+    final Map<String, List<MedicationReminder>> grouped = {};
+    
+    for (final med in _medicationReminders) {
+      final prescriptionId = med.prescriptionId ?? 'no_prescription';
+      if (!grouped.containsKey(prescriptionId)) {
+        grouped[prescriptionId] = [];
+      }
+      grouped[prescriptionId]!.add(med);
+    }
+    
+    return grouped;
   }
 
 }
