@@ -285,7 +285,18 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+    void updateMedicationReminder(MedicationReminder updated) {
+    final idx = _medicationReminders.indexWhere((m) => m.id == updated.id);
+    if (idx != -1) {
+      _medicationReminders[idx] = updated;
+      notifyListeners();
+    }
+  }
  
+  void deleteMedicationReminder(String id) {
+    _medicationReminders.removeWhere((m) => m.id == id);
+    notifyListeners();
+  }
 
   // Méthode helper pour grouper les médicaments par ordonnance
   Map<String, List<MedicationReminder>> get medicationsByPrescription {
