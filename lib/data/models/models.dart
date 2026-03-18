@@ -102,19 +102,23 @@ class AdviceModel {
 class EventModel {
   final String id;
   final String title;
-  final String description;
+  final String? description;       // texte de description (optionnel)
+  final String? imageUrl;          // image depuis une URL réseau
+  final String? imageLocalPath;    // image depuis le stockage local
   final DateTime date;
   final TimeOfDay time;
   final String location;
   final String organizer;
-  final String category; // sport | campaign | cleaning | health | awareness
+  final String category;           // sport | health | cleaning | awareness | campaign
   final int? maxParticipants;
   bool isRegistered;
-
+ 
   EventModel({
     required this.id,
     required this.title,
-    required this.description,
+    this.description,
+    this.imageUrl,
+    this.imageLocalPath,
     required this.date,
     required this.time,
     required this.location,
@@ -123,7 +127,15 @@ class EventModel {
     this.maxParticipants,
     this.isRegistered = false,
   });
+ 
+  /// True si l'événement a une image (locale ou réseau)
+  bool get hasImage => imageUrl != null || imageLocalPath != null;
+ 
+  /// True si l'événement a une description textuelle non vide
+  bool get hasDescription =>
+      description != null && description!.trim().isNotEmpty;
 }
+
 
 // ─── Reminder Models ───
 class ScreeningReminder {

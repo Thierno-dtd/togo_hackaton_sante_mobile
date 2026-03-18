@@ -85,52 +85,92 @@ class MockData {
 
   // ─── Mock Events ───
   static final List<EventModel> events = [
-    EventModel(
-      id: 'e1', title: 'Journée sportive communautaire',
-      description: 'Une matinée de sport et de bien-être pour tous les habitants du quartier. Activités : marche, aerobics, yoga, et jeux collectifs. Venez en famille !',
-      date: DateTime.now().add(const Duration(days: 3)),
-      time: const TimeOfDay(hour: 7, minute: 0),
-      location: 'Stade municipal de Logopé', organizer: 'Mairie de Agoè-Nyivé', category: 'sport',
-    ),
-    EventModel(
-      id: 'e2', title: 'Dépistage gratuit hypertension & diabète',
-      description: 'Campagne de dépistage gratuite organisée par le CHU de Treichville. Tests de glycémie, mesure de tension artérielle et consultations gratuites.',
-      date: DateTime.now().add(const Duration(days: 7)),
-      time: const TimeOfDay(hour: 8, minute: 30),
-      location: 'Université de Lomé', organizer: 'CHU Tokoin', category: 'health',
-      maxParticipants: 200,
-    ),
-    EventModel(
-      id: 'e3', title: 'Campagne de nettoyage - Marchés propres',
-      description: 'Opération de salubrité dans les marchés populaires. Rejoignez les équipes de bénévoles pour un environnement plus sain dans nos marchés.',
-      date: DateTime.now().add(const Duration(days: 5)),
-      time: const TimeOfDay(hour: 6, minute: 0),
-      location: 'Marché de Adjamé 220 logements', organizer: 'ONG Environnement+', category: 'cleaning',
-    ),
-    EventModel(
-      id: 'e4', title: 'Conférence : Alimentation et maladies chroniques',
-      description: 'Une conférence pour comprendre le lien entre alimentation et maladies cardiovasculaires. Avec Pr. Koffi Amoussou, cardiologue.',
-      date: DateTime.now().add(const Duration(days: 10)),
-      time: const TimeOfDay(hour: 15, minute: 0),
-      location: 'Salle des fêtes de CCL', organizer: 'Association Cœur Sain', category: 'awareness',
-    ),
-    EventModel(
-      id: 'e5', title: 'Marathon de la santé - 5km pour tous',
-      description: 'Course caritative dont les fonds financeront les soins de patients démunis. Ouverte à tous niveaux. T-shirt et kit offerts.',
-      date: DateTime.now().add(const Duration(days: 14)),
-      time: const TimeOfDay(hour: 7, minute: 30),
-      location: 'Boulevard de la République, Plateau', organizer: 'Fondation Santé CI', category: 'sport',
-      maxParticipants: 500,
-    ),
-    EventModel(
-      id: 'e6', title: 'Atelier cuisine santé pour diabétiques',
-      description: 'Apprenez à cuisiner des repas délicieux adaptés aux diabétiques. Démonstration par une diététicienne et dégustation incluses.',
-      date: DateTime.now().add(const Duration(days: 6)),
-      time: const TimeOfDay(hour: 10, minute: 0),
-      location: 'Centre communautaire de Kodjoviakopé', organizer: 'Association Diabète CI', category: 'health',
+  // ── Événement avec texte uniquement ──
+  EventModel(
+    id: 'e1',
+    title: 'Journée sportive communautaire',
+    description:
+        'Une matinée de sport et de bien-être pour tous les habitants du quartier. '
+        'Activités : marche, aerobics, yoga, et jeux collectifs. Venez en famille !',
+    date: DateTime.now().add(const Duration(days: 3)),
+    time: const TimeOfDay(hour: 7, minute: 0),
+    location: 'Stade municipal de Cocody',
+    organizer: 'Mairie de Cocody',
+    category: 'sport',
+  ),
+ 
+  // ── Événement avec image URL + texte ──
+  EventModel(
+    id: 'e2',
+    title: 'Dépistage gratuit hypertension & diabète',
+    description:
+        'Campagne de dépistage gratuite organisée par le CHU de Treichville. '
+        'Tests de glycémie, mesure de tension artérielle et consultations gratuites.',
+    imageUrl: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800',
+    date: DateTime.now().add(const Duration(days: 7)),
+    time: const TimeOfDay(hour: 8, minute: 30),
+    location: 'CHU de Treichville, Pavillon A',
+    organizer: 'CHU Treichville',
+    category: 'health',
+    maxParticipants: 200,
+  ),
+ 
+  // ── Événement avec image URL seule (pas de description) ──
+  EventModel(
+    id: 'e3',
+    title: 'Campagne de nettoyage — Marchés propres',
+    imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800',
+    date: DateTime.now().add(const Duration(days: 5)),
+    time: const TimeOfDay(hour: 6, minute: 0),
+    location: 'Marché de Adjamé 220 logements',
+    organizer: 'ONG Environnement+',
+    category: 'cleaning',
+  ),
+ 
+  // ── Événement texte uniquement ──
+  EventModel(
+    id: 'e4',
+    title: 'Conférence : Alimentation et maladies chroniques',
+    description:
+        'Une conférence pour comprendre le lien entre alimentation et maladies cardiovasculaires. '
+        'Avec Pr. Koffi Amoussou, cardiologue.',
+    date: DateTime.now().add(const Duration(days: 10)),
+    time: const TimeOfDay(hour: 15, minute: 0),
+    location: 'Salle des fêtes de Marcory',
+    organizer: 'Association Cœur Sain',
+    category: 'awareness',
+  ),
+ 
+  // ── Événement avec image + texte ──
+  EventModel(
+    id: 'e5',
+    title: 'Marathon de la santé — 5km pour tous',
+    description:
+        'Course caritative dont les fonds financeront les soins de patients démunis. '
+        'Ouverte à tous niveaux. T-shirt et kit offerts.',
+    imageUrl: 'https://images.unsplash.com/photo-1452626038306-9aae5e071b51?w=800',
+    date: DateTime.now().add(const Duration(days: 14)),
+    time: const TimeOfDay(hour: 7, minute: 30),
+    location: 'Boulevard de la République, Plateau',
+    organizer: 'Fondation Santé CI',
+    category: 'sport',
+    maxParticipants: 500,
+  ),
+ 
+  // ── Événement texte uniquement ──
+  EventModel(
+    id: 'e6',
+    title: 'Atelier cuisine santé pour diabétiques',
+    description:
+        'Apprenez à cuisiner des repas délicieux adaptés aux diabétiques. '
+        'Démonstration par une diététicienne et dégustation incluses.',
+    date: DateTime.now().add(const Duration(days: 6)),
+    time: const TimeOfDay(hour: 10, minute: 0),
+    location: 'Centre communautaire de Yopougon',
+    organizer: 'Association Diabète CI',
+    category: 'health',
     ),
   ];
-
   // ─── Mock Assessment Questions ───
   static final List<SelfAssessmentQuestion> assessmentQuestions = [
     SelfAssessmentQuestion(
