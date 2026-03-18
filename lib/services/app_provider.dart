@@ -129,26 +129,34 @@ class AppProvider extends ChangeNotifier {
     }
   }
 
-  void toggleScreeningReminder(String id) {
+    void toggleScreeningReminder(String id) {
     final idx = _screeningReminders.indexWhere((r) => r.id == id);
     if (idx != -1) {
       _screeningReminders[idx].isCompleted = !_screeningReminders[idx].isCompleted;
+      if (_screeningReminders[idx].isCompleted) {
+        _notificationService.cancelScreeningReminder(id); // ← annuler si coché
+      }
       notifyListeners();
     }
   }
 
   void addMedicationReminder(MedicationReminder reminder) {
     _medicationReminders.add(reminder);
+    for (final time in reminder.intakeTimes) {
+      _notificationService.scheduleMedicationReminder(reminder, time); // ← ajouter
+    }
     notifyListeners();
   }
 
-  void addSimpleReminder(SimpleReminder reminder) {
+    void addSimpleReminder(SimpleReminder reminder) {
     _simpleReminders.add(reminder);
+    _notificationService.scheduleSimpleReminder(reminder); // ← ajouter
     notifyListeners();
   }
 
   void deleteSimpleReminder(String id) {
     _simpleReminders.removeWhere((r) => r.id == id);
+    _notificationService.cancelSimpleReminder(id); // ← ajouter
     notifyListeners();
   }
 
@@ -306,15 +314,21 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-    void updateMedicationReminder(MedicationReminder updated) {
+  void updateMedicationReminder(MedicationReminder updated) {
     final idx = _medicationReminders.indexWhere((m) => m.id == updated.id);
     if (idx != -1) {
+      _notificationService.cancelMedicationReminders(_medicationReminders[idx]); // ← annuler ancienne
       _medicationReminders[idx] = updated;
+      for (final time in updated.intakeTimes) {
+        _notificationService.scheduleMedicationReminder(updated, time); // ← planifier nouvelle
+      }
       notifyListeners();
     }
   }
  
-  void deleteMedicationReminder(String id) {
+    void deleteMedicationReminder(String id) {
+    final med = _medicationReminders.firstWhere((m) => m.id == id, orElse: null);
+    if (med != null) _notificationService.cancelMedicationReminders(med); 
     _medicationReminders.removeWhere((m) => m.id == id);
     notifyListeners();
   }

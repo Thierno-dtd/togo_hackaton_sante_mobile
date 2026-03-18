@@ -9,17 +9,57 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _notifications = 
+  final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
 
   bool _initialized = false;
 
+  // ── Channels Android ──
+  static const _medChannel = AndroidNotificationChannel(
+    'medication_channel',
+    'Rappels médicaments',
+    description: 'Notifications pour les prises de médicaments',
+    importance: Importance.high,
+    playSound: true,
+    enableVibration: true,
+  );
+
+  static const _renewChannel = AndroidNotificationChannel(
+    'renewal_channel',
+    'Renouvellement médicaments',
+    description: 'Alertes stock faible',
+    importance: Importance.high,
+    playSound: true,
+  );
+
+  static const _screeningChannel = AndroidNotificationChannel(
+    'screening_channel',
+    'Dépistages',
+    description: 'Rappels de dépistage',
+    importance: Importance.high,
+    playSound: true,
+  );
+
+  static const _reminderChannel = AndroidNotificationChannel(
+    'reminder_channel',
+    'Rappels simples',
+    description: 'Rappels personnalisés',
+    importance: Importance.high,
+    playSound: true,
+    enableVibration: true,
+  );
+
   Future<void> initialize() async {
     if (_initialized) return;
 
+    // ── Fuseau horaire Togo (GMT+0, même timezone que Londres hiver) ──
     tz.initializeTimeZones();
+    tz.setLocalLocation(tz.getLocation('Africa/Lome'));
 
+    // ── Settings Android ──
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    // ── Settings iOS ──
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -31,157 +71,261 @@ class NotificationService {
       iOS: iosSettings,
     );
 
+    // ── Créer les channels Android (requis Android 8+) ──
+    final androidPlugin = _notifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    await androidPlugin?.createNotificationChannel(_medChannel);
+    await androidPlugin?.createNotificationChannel(_renewChannel);
+    await androidPlugin?.createNotificationChannel(_screeningChannel);
+    await androidPlugin?.createNotificationChannel(_reminderChannel);
+
+    // ── Demander permission Android 13+ ──
+    await androidPlugin?.requestNotificationsPermission();
+    // ── Demander permission alarmes exactes Android 12+ ──
+    await androidPlugin?.requestExactAlarmsPermission();
+
     await _notifications.initialize(
       initSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
+      onDidReceiveBackgroundNotificationResponse: _onBackgroundNotification,
     );
 
     _initialized = true;
   }
 
+  // ── Tap sur notification (app ouverte) ──
   void _onNotificationTapped(NotificationResponse response) {
-    // Gérer le tap sur la notification
-    // Navigation vers la page appropriée
+    // La navigation est gérée via payload dans app_provider
+    debugPrint('Notification tapped: ${response.payload}');
   }
 
+  // ── Tap sur notification (app en arrière-plan) ──
+  @pragma('vm:entry-point')
+  static void _onBackgroundNotification(NotificationResponse response) {
+    debugPrint('Background notification: ${response.payload}');
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // ─── Rappel médicament — répétition quotidienne ───
+  // ════════════════════════════════════════════════════════════
   Future<void> scheduleMedicationReminder(
     MedicationReminder medication,
     TimeOfDay time,
   ) async {
-    for (var i = 0; i < medication.intakeTimes.length; i++) {
-      final intakeTime = medication.intakeTimes[i];
-      
-      await _notifications.zonedSchedule(
-        medication.id.hashCode + i,
-        'Prise de médicament',
-        '${medication.medicationName} - ${medication.dosage}',
-        _nextInstanceOfTime(intakeTime),
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'medication_channel',
-            'Rappels de médicaments',
-            channelDescription: 'Notifications pour les prises de médicaments',
-            importance: Importance.high,
-            priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
+    await initialize();
+
+    // ID unique par médicament + index de l'heure
+    final timeIndex = medication.intakeTimes.indexOf(time);
+    final notifId = _medNotifId(medication.id, timeIndex);
+
+    await _notifications.zonedSchedule(
+      notifId,
+      '💊 Prise de médicament',
+      '${medication.medicationName} ${medication.dosage}',
+      _nextInstanceOfTime(time),
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _medChannel.id,
+          _medChannel.name,
+          channelDescription: _medChannel.description,
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+          color: const Color(0xFF163344),
+          playSound: true,
+          enableVibration: true,
+          styleInformation: BigTextStyleInformation(
+            '${medication.medicationName} ${medication.dosage}\nNe pas oublier votre traitement.',
           ),
-          iOS: DarwinNotificationDetails(),
         ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: DateTimeComponents.time,
-      );
-    }
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time, // répète chaque jour
+      payload: 'medication_${medication.id}',
+    );
   }
 
+  // ════════════════════════════════════════════════════════════
+  // ─── Alerte renouvellement ───
+  // ════════════════════════════════════════════════════════════
   Future<void> scheduleRenewalAlert(MedicationReminder medication) async {
+    await initialize();
     if (!medication.needsRenewal) return;
 
     await _notifications.show(
-      medication.id.hashCode + 1000,
-      'Renouvellement nécessaire',
-      'Stock faible pour ${medication.medicationName}. '
-          'Il vous reste ${medication.stock} unité(s).',
-      const NotificationDetails(
+      _renewNotifId(medication.id),
+      '⚠ Stock faible — ${medication.medicationName}',
+      'Il vous reste ${medication.stock} unité(s). Pensez à renouveler votre ordonnance.',
+      NotificationDetails(
         android: AndroidNotificationDetails(
-          'renewal_channel',
-          'Renouvellement médicaments',
-          channelDescription: 'Alertes de renouvellement',
+          _renewChannel.id,
+          _renewChannel.name,
           importance: Importance.high,
           priority: Priority.high,
-          color: Color(0xFFF59E0B),
+          color: const Color(0xFFF59E0B),
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentSound: true,
         ),
       ),
+      payload: 'renewal_${medication.id}',
     );
   }
 
-  Future<void> scheduleMissedMeasurementNotification() async {
-    await _notifications.show(
-      9999,
-      'Mesure manquée',
-      'Vous n\'avez pas effectué votre mesure de ce matin',
-      const NotificationDetails(
+  // ════════════════════════════════════════════════════════════
+  // ─── Rappel simple (alarme à date/heure fixe) ───
+  // ════════════════════════════════════════════════════════════
+  Future<void> scheduleSimpleReminder(SimpleReminder reminder) async {
+    await initialize();
+
+    final scheduledDate = tz.TZDateTime(
+      tz.local,
+      reminder.date.year,
+      reminder.date.month,
+      reminder.date.day,
+      reminder.time.hour,
+      reminder.time.minute,
+    );
+
+    // Ne pas planifier une date passée
+    if (scheduledDate.isBefore(tz.TZDateTime.now(tz.local))) return;
+
+    await _notifications.zonedSchedule(
+      _simpleNotifId(reminder.id),
+      '🔔 Rappel',
+      reminder.label,
+      scheduledDate,
+      NotificationDetails(
         android: AndroidNotificationDetails(
-          'measurement_channel',
-          'Rappels de mesures',
+          _reminderChannel.id,
+          _reminderChannel.name,
+          channelDescription: _reminderChannel.description,
           importance: Importance.high,
           priority: Priority.high,
-          color: Color(0xFFEF4444),
+          icon: '@mipmap/ic_launcher',
+          color: const Color(0xFF10B981),
+          playSound: true,
+          enableVibration: true,
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
         ),
       ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      payload: 'simple_${reminder.id}',
     );
   }
 
-  Future<void> scheduleDoctorAppointment({
-    required String doctorName,
-    required DateTime appointmentDate,
-    required String hospital,
-    String? contactInfo,
-  }) async {
-    final daysUntil = appointmentDate.difference(DateTime.now()).inDays;
-    
-    String body = 'Rendez-vous avec Dr. $doctorName le '
-        '${appointmentDate.day}/${appointmentDate.month} à $hospital.';
-    
-    if (contactInfo != null) {
-      body += ' Contact: $contactInfo';
-    }
-
-    // Notification 2 jours avant
-    if (daysUntil >= 2) {
-      await _notifications.zonedSchedule(
-        appointmentDate.hashCode,
-        'Rendez-vous médical imminent',
-        body,
-        tz.TZDateTime.from(
-          appointmentDate.subtract(const Duration(days: 2)),
-          tz.local,
-        ),
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'appointment_channel',
-            'Rendez-vous médicaux',
-            importance: Importance.high,
-            priority: Priority.high,
-            color: Color(0xFF10B981),
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-      );
-    }
-  }
-
+  // ════════════════════════════════════════════════════════════
+  // ─── Rappel dépistage ───
+  // ════════════════════════════════════════════════════════════
   Future<void> scheduleScreeningReminder(ScreeningReminder reminder) async {
-    final daysUntil = reminder.dueDate.difference(DateTime.now()).inDays;
+    await initialize();
 
-    if (daysUntil <= 7 && daysUntil >= 0) {
+    final daysUntil = reminder.dueDate.difference(DateTime.now()).inDays;
+    if (daysUntil < 0 || reminder.isCompleted) return;
+
+    // Notifier 7 jours avant, 1 jour avant, et le jour J
+    final notifyDays = [7, 1, 0].where((d) => daysUntil >= d);
+
+    for (final daysOffset in notifyDays) {
+      final notifDate = tz.TZDateTime(
+        tz.local,
+        reminder.dueDate.year,
+        reminder.dueDate.month,
+        reminder.dueDate.day - daysOffset,
+        9,
+        0,
+        0,
+      );
+
+      if (notifDate.isBefore(tz.TZDateTime.now(tz.local))) continue;
+
+      final suffix = daysOffset == 0
+          ? "Aujourd'hui"
+          : daysOffset == 1
+              ? 'Demain'
+              : 'Dans $daysOffset jours';
+
       await _notifications.zonedSchedule(
-        reminder.id.hashCode,
-        'Dépistage à venir',
-        '${reminder.title} - ${reminder.description}',
-        tz.TZDateTime.from(reminder.dueDate, tz.local),
-        const NotificationDetails(
+        _screeningNotifId(reminder.id, daysOffset),
+        '🏥 Dépistage — $suffix',
+        '${reminder.title}: ${reminder.description}',
+        notifDate,
+        NotificationDetails(
           android: AndroidNotificationDetails(
-            'screening_channel',
-            'Rappels de dépistage',
+            _screeningChannel.id,
+            _screeningChannel.name,
             importance: Importance.high,
             priority: Priority.high,
-            color: Color(0xFF3B82F6),
+            icon: '@mipmap/ic_launcher',
+            color: const Color(0xFF3B82F6),
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentSound: true,
           ),
         ),
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
+        payload: 'screening_${reminder.id}',
       );
     }
   }
 
+  // ════════════════════════════════════════════════════════════
+  // ─── Annulation ───
+  // ════════════════════════════════════════════════════════════
+
+  /// Annuler toutes les notifications d'un médicament
+  Future<void> cancelMedicationReminders(MedicationReminder medication) async {
+    for (var i = 0; i < medication.intakeTimes.length; i++) {
+      await _notifications.cancel(_medNotifId(medication.id, i));
+    }
+    await _notifications.cancel(_renewNotifId(medication.id));
+  }
+
+  /// Annuler le rappel simple
+  Future<void> cancelSimpleReminder(String reminderId) async {
+    await _notifications.cancel(_simpleNotifId(reminderId));
+  }
+
+  /// Annuler les notifications d'un dépistage
+  Future<void> cancelScreeningReminder(String reminderId) async {
+    for (final d in [0, 1, 7]) {
+      await _notifications.cancel(_screeningNotifId(reminderId, d));
+    }
+  }
+
+  /// Annuler toutes les notifications
+  Future<void> cancelAll() async {
+    await _notifications.cancelAll();
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // ─── Helpers ───
+  // ════════════════════════════════════════════════════════════
+
+  /// Prochaine occurrence d'une heure (aujourd'hui si pas encore passée, demain sinon)
   tz.TZDateTime _nextInstanceOfTime(TimeOfDay time) {
     final now = tz.TZDateTime.now(tz.local);
-    var scheduledDate = tz.TZDateTime(
+    var scheduled = tz.TZDateTime(
       tz.local,
       now.year,
       now.month,
@@ -189,19 +333,22 @@ class NotificationService {
       time.hour,
       time.minute,
     );
-
-    if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    if (scheduled.isBefore(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
     }
-
-    return scheduledDate;
+    return scheduled;
   }
 
-  Future<void> cancelNotification(int id) async {
-    await _notifications.cancel(id);
-  }
+  // IDs déterministes pour pouvoir annuler par médicament/rappel
+  int _medNotifId(String medicationId, int timeIndex) =>
+      medicationId.hashCode + timeIndex;
 
-  Future<void> cancelAllNotifications() async {
-    await _notifications.cancelAll();
-  }
+  int _renewNotifId(String medicationId) =>
+      medicationId.hashCode + 1000;
+
+  int _simpleNotifId(String reminderId) =>
+      reminderId.hashCode + 2000;
+
+  int _screeningNotifId(String reminderId, int dayOffset) =>
+      reminderId.hashCode + 3000 + dayOffset;
 }
