@@ -35,26 +35,28 @@ class _RemindersPageState extends State<RemindersPage> with SingleTickerProvider
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
+void didChangeDependencies() {
+  super.didChangeDependencies();
 
-    final provider = context.watch<AppProvider>();
-    final length = provider.isPatient ? 3 : 1;
+  final provider = context.watch<AppProvider>();
+  final length = provider.isPatient ? 3 : 1;
 
-    if (_tabCtrl.length != length) {
-      _tabCtrl.dispose();
+  if (_tabCtrl.length != length) {
+    final currentIndex = _tabCtrl.index; // ✅ garder l'état actuel
 
-      final safeIndex = widget.initialTab.clamp(0, length - 1);
+    _tabCtrl.dispose();
 
-      _tabCtrl = TabController(
-        length: length,
-        vsync: this,
-        initialIndex: safeIndex,
-      );
+    final safeIndex = currentIndex.clamp(0, length - 1);
 
-      setState(() {});
-    }
+    _tabCtrl = TabController(
+      length: length,
+      vsync: this,
+      initialIndex: safeIndex,
+    );
+
+    setState(() {});
   }
+}
 
   @override
   void dispose() {
@@ -295,16 +297,24 @@ class _AddSimpleReminderSheetState extends State<_AddSimpleReminderSheet> {
   DateTime _date = DateTime.now();
   TimeOfDay _time = TimeOfDay.now();
 
-  void _save() {
-    if (_labelCtrl.text.isEmpty) return;
-    final rem = SimpleReminder(
-      id: const Uuid().v4(), label: _labelCtrl.text.trim(),
-      date: _date, time: _time,
-    );
-    widget.outerContext.read<AppProvider>().addSimpleReminder(rem);
-    AppUtils.showSnackBar(widget.outerContext, 'Rappel ajouté');
-    Navigator.pop(context);
-  }
+  Future<void> _save() async {
+  if (_labelCtrl.text.isEmpty) return;
+
+  final rem = SimpleReminder(
+    id: const Uuid().v4(),
+    label: _labelCtrl.text.trim(),
+    date: _date,
+    time: _time,
+  );
+
+  await widget.outerContext.read<AppProvider>().addSimpleReminder(rem);
+
+  if (!mounted) return;
+
+  Navigator.pop(context);
+
+  AppUtils.showSnackBar(widget.outerContext, 'Rappel ajouté');
+}
 
   @override
   Widget build(BuildContext context) {

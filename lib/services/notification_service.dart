@@ -290,3 +290,87 @@ NotificationModel _mapToNotifModel(Map<String, dynamic> m) => NotificationModel(
   type: NotificationType.values[m['type'] ?? 0],
   createdAt: DateTime.tryParse(m['createdAt'] ?? '') ?? DateTime.now(),
 );
+
+// ════════════════════════════════════════════════════════════
+// ─── NOUVELLES MÉTHODES : rappel anticipé (avant l'alarme) ───
+// ════════════════════════════════════════════════════════════
+
+extension NotificationServiceExtension on NotificationService {
+
+  /// Notification de rappel AVANT la prise (J-1 matin)
+  /// L'alarme réelle est gérée par AlarmService à l'heure exacte
+  Future<void> scheduleMedicationReminderNotification(
+    MedicationReminder medication,
+    TimeOfDay time, {
+    int advanceDays = 1,
+  }) async {
+    await initialize();
+    final idx = medication.intakeTimes.indexOf(time);
+    final now = tz.TZDateTime.now(tz.local);
+
+    // Rappel la veille à 9h
+    final reminderDate = tz.TZDateTime(
+      tz.local,
+      now.year, now.month, now.day,
+      9, 0,
+    ).add(Duration(days: advanceDays == 0 ? 0 : -1 + advanceDays));
+
+    if (reminderDate.isBefore(now)) return;
+
+    await _plugin.zonedSchedule(
+      _medId(medication.id, idx) + 500, // ID différent de l'alarme
+      '💊 Rappel médicament demain',
+      '${medication.medicationName} ${medication.dosage} — à ${time.hour.toString().padLeft(2,'0')}:${time.minute.toString().padLeft(2,'0')}',
+      reminderDate,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          NotificationService._notifChannel.id, NotificationService._notifChannel.name,
+          importance: Importance.high, priority: Priority.high,
+          color: const Color(0xFF163344),
+          icon: '@mipmap/ic_launcher', autoCancel: true,
+        ),
+        iOS: const DarwinNotificationDetails(presentAlert: true, presentSound: true),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      payload: 'medication_reminder|${medication.id}|${medication.medicationName}|${medication.dosage}',
+    );
+  }
+
+  /// Notification de rappel AVANT le rappel simple (60 min avant)
+  Future<void> scheduleSimpleReminderNotification(
+    SimpleReminder reminder, {
+    int advanceMinutes = 60,
+  }) async {
+    await initialize();
+
+    final targetTime = DateTime(
+      reminder.date.year, reminder.date.month, reminder.date.day,
+      reminder.time.hour, reminder.time.minute,
+    );
+    final notifTime = targetTime.subtract(Duration(minutes: advanceMinutes));
+
+    if (notifTime.isBefore(DateTime.now())) return;
+
+    final tzNotifTime = tz.TZDateTime.from(notifTime, tz.local);
+
+    await _plugin.zonedSchedule(
+      _simpleId(reminder.id) + 500, // ID différent de l'alarme
+      '🔔 Rappel dans ${advanceMinutes}min',
+      reminder.label,
+      tzNotifTime,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          NotificationService._notifChannel.id, NotificationService._notifChannel.name,
+          importance: Importance.high, priority: Priority.high,
+          color: const Color(0xFF10B981),
+          icon: '@mipmap/ic_launcher', autoCancel: true,
+        ),
+        iOS: const DarwinNotificationDetails(presentAlert: true, presentSound: true),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      payload: 'simple_reminder|${reminder.id}|${reminder.label}',
+    );
+  }
+}

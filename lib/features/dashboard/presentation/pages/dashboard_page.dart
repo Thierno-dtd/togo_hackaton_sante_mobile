@@ -11,11 +11,11 @@ class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
   // ── Helper navigation vers un onglet ──
-  void _goToTab(BuildContext context, int index) {
+  void _goToTab(BuildContext context, int index, {int? subTabIndex}) {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
-        builder: (_) => MainNavigation(initialIndex: index),
+        builder: (_) => MainNavigation(initialIndex: index, initialReminderTab: subTabIndex),
       ),
       (route) => false,
     );
@@ -426,7 +426,7 @@ class DashboardPage extends StatelessWidget {
         ...todayMeds.take(2).map((m) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: GestureDetector(
-                onTap: () => _goToTab(context, 4),
+                onTap: () => _goToTab(context, 4, subTabIndex: 1),
                 child: AppCard(
                   child: Row(
                     children: [
@@ -467,7 +467,7 @@ class DashboardPage extends StatelessWidget {
         ...todaySimple.take(2).map((r) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: GestureDetector(
-                onTap: () => _goToTab(context, 4),
+                onTap: () => _goToTab(context, 4, subTabIndex: 2),
                 child: AppCard(
                   child: Row(
                     children: [
