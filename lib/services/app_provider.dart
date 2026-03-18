@@ -7,10 +7,12 @@ import 'notification_service.dart';
 
 class AppProvider extends ChangeNotifier {
 
-    static final GlobalKey<NavigatorState> navigatorKey =
+  // ── NavigatorKey global ──
+  static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
-  final NotificationService _notificationService = NotificationService();
+  final NotificationService _notif = NotificationService();
+
   // ─── Theme ───
   ThemeMode _themeMode = ThemeMode.light;
   ThemeMode get themeMode => _themeMode;
@@ -37,11 +39,9 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-    void logout() {
-    // 1. Vider la pile jusqu'à la première route (home = _AppRoot)
+  void logout() {
     navigatorKey.currentState?.popUntil((route) => route.isFirst);
- 
-    // 2. Reset complet du state
+    _notif.cancelAll();
     _currentUser = null;
     _isLoggedIn = false;
     _appLockEnabled = false;
@@ -56,14 +56,19 @@ class AppProvider extends ChangeNotifier {
     _events = [];
     _notifications = [];
     _lastAssessmentResult = null;
- 
-    // 3. notifyListeners → _AppRoot rebuild → LoginPage
     notifyListeners();
   }
 
   void updateUser(UserModel user) {
     _currentUser = user;
     notifyListeners();
+  }
+
+  void updateUserLocation(String gpsLocation) {
+    if (_currentUser != null) {
+      _currentUser = _currentUser!.copyWith(gpsLocation: gpsLocation);
+      notifyListeners();
+    }
   }
 
   void setAppLock(bool enabled, {String? password}) {
@@ -108,64 +113,93 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ─── Reminders ───
+  // ─── Screening Reminders ───
   List<ScreeningReminder> _screeningReminders = [];
-  List<MedicationReminder> _medicationReminders = [];
-  List<SimpleReminder> _simpleReminders = [];
-
   List<ScreeningReminder> get screeningReminders => _screeningReminders;
-  List<MedicationReminder> get medicationReminders => _medicationReminders;
-  List<SimpleReminder> get simpleReminders => _simpleReminders;
 
-  List<ScreeningReminder> get overdueScreening =>
-      _screeningReminders.where((r) => !r.isCompleted && r.dueDate.isBefore(DateTime.now())).toList();
+  List<ScreeningReminder> get overdueScreening => _screeningReminders
+      .where((r) => !r.isCompleted && r.dueDate.isBefore(DateTime.now()))
+      .toList();
 
-  void loadMockReminders() {
-    _screeningReminders = MockData.defaultScreeningReminders;
-    if (isPatient) {
-      loadMockPrescriptions();
-      _medicationReminders = MockData.defaultMedicationReminders;
-      _simpleReminders = MockData.defaultSimpleReminders;
-    }
-  }
-
-    void toggleScreeningReminder(String id) {
+  /// Toggle complété + annule l'alarme si complété
+  void toggleScreeningReminder(String id) {
     final idx = _screeningReminders.indexWhere((r) => r.id == id);
-    if (idx != -1) {
-      _screeningReminders[idx].isCompleted = !_screeningReminders[idx].isCompleted;
-      if (_screeningReminders[idx].isCompleted) {
-        _notificationService.cancelScreeningReminder(id); // ← annuler si coché
-      }
-      notifyListeners();
+    if (idx == -1) return;
+    _screeningReminders[idx].isCompleted =
+        !_screeningReminders[idx].isCompleted;
+    if (_screeningReminders[idx].isCompleted) {
+      _notif.cancelScreeningReminder(id);
     }
+    notifyListeners();
   }
 
+  // ─── Medication Reminders ───
+  List<MedicationReminder> _medicationReminders = [];
+  List<MedicationReminder> get medicationReminders => _medicationReminders;
+
+  /// Ajoute + programme les alarmes
   void addMedicationReminder(MedicationReminder reminder) {
     _medicationReminders.add(reminder);
     for (final time in reminder.intakeTimes) {
-      _notificationService.scheduleMedicationReminder(reminder, time); // ← ajouter
+      _notif.scheduleMedicationReminder(reminder, time);
+    }
+    if (reminder.needsRenewal) {
+      _notif.scheduleRenewalAlert(reminder);
     }
     notifyListeners();
   }
 
-    void addSimpleReminder(SimpleReminder reminder) {
+  /// Met à jour + reprogramme les alarmes
+  void updateMedicationReminder(MedicationReminder updated) {
+    final idx = _medicationReminders.indexWhere((m) => m.id == updated.id);
+    if (idx == -1) return;
+    _notif.cancelMedicationReminders(_medicationReminders[idx]);
+    _medicationReminders[idx] = updated;
+    for (final time in updated.intakeTimes) {
+      _notif.scheduleMedicationReminder(updated, time);
+    }
+    if (updated.needsRenewal) {
+      _notif.scheduleRenewalAlert(updated);
+    }
+    notifyListeners();
+  }
+
+  /// Supprime + annule les alarmes
+  void deleteMedicationReminder(String id) {
+    final idx = _medicationReminders.indexWhere((m) => m.id == id);
+    if (idx == -1) return;
+    _notif.cancelMedicationReminders(_medicationReminders[idx]);
+    _medicationReminders.removeAt(idx);
+    notifyListeners();
+  }
+
+  // ─── Simple Reminders ───
+  List<SimpleReminder> _simpleReminders = [];
+  List<SimpleReminder> get simpleReminders => _simpleReminders;
+
+  /// Ajoute + programme l'alarme à date/heure fixe
+  void addSimpleReminder(SimpleReminder reminder) {
     _simpleReminders.add(reminder);
-    _notificationService.scheduleSimpleReminder(reminder); // ← ajouter
+    _notif.scheduleSimpleReminder(reminder);
     notifyListeners();
   }
 
+  /// Supprime + annule l'alarme
   void deleteSimpleReminder(String id) {
+    _notif.cancelSimpleReminder(id);
     _simpleReminders.removeWhere((r) => r.id == id);
-    _notificationService.cancelSimpleReminder(id); // ← ajouter
     notifyListeners();
   }
 
+  /// Marque complété + annule l'alarme
   void toggleSimpleReminder(String id) {
     final idx = _simpleReminders.indexWhere((r) => r.id == id);
-    if (idx != -1) {
-      _simpleReminders[idx].isCompleted = !_simpleReminders[idx].isCompleted;
-      notifyListeners();
+    if (idx == -1) return;
+    _simpleReminders[idx].isCompleted = !_simpleReminders[idx].isCompleted;
+    if (_simpleReminders[idx].isCompleted) {
+      _notif.cancelSimpleReminder(id);
     }
+    notifyListeners();
   }
 
   // ─── Daily Advice ───
@@ -173,8 +207,9 @@ class AppProvider extends ChangeNotifier {
   List<AdviceModel> get dailyAdvice => _dailyAdvice;
 
   void loadDailyAdvice(String diseaseType) {
-    final all = MockData.adviceList.where((a) =>
-        a.diseaseType == 'all' || a.diseaseType == diseaseType).toList();
+    final all = MockData.adviceList
+        .where((a) => a.diseaseType == 'all' || a.diseaseType == diseaseType)
+        .toList();
     all.shuffle();
     _dailyAdvice = all.take(AppConstants.advicePerDay).toList();
   }
@@ -192,9 +227,7 @@ class AppProvider extends ChangeNotifier {
   List<EventModel> _events = [];
   List<EventModel> get events => _events;
 
-  void loadEvents() {
-    _events = MockData.events;
-  }
+  void loadEvents() => _events = MockData.events;
 
   void toggleEventRegistration(String eventId) {
     final idx = _events.indexWhere((e) => e.id == eventId);
@@ -204,11 +237,11 @@ class AppProvider extends ChangeNotifier {
     }
   }
 
-
-   List<NotificationModel> _notifications = [];
+  // ─── Notifications in-app ───
+  List<NotificationModel> _notifications = [];
   List<NotificationModel> get notifications => _notifications;
-  
-  int get unreadNotificationsCount => 
+
+  int get unreadNotificationsCount =>
       _notifications.where((n) => !n.isRead).length;
 
   void loadMockNotifications() {
@@ -235,66 +268,28 @@ class AppProvider extends ChangeNotifier {
   }
 
   void markAllAsRead() {
-    _notifications = _notifications
-        .map((n) => n.copyWith(isRead: true))
-        .toList();
+    _notifications =
+        _notifications.map((n) => n.copyWith(isRead: true)).toList();
     notifyListeners();
   }
 
-  // ─── Scheduling automatique ───
-  Future<void> scheduleAllReminders() async {
-    await _notificationService.initialize();
-
-    // Médicaments
-    for (final med in _medicationReminders) {
-      for (final time in med.intakeTimes) {
-        await _notificationService.scheduleMedicationReminder(med, time);
-      }
-      if (med.needsRenewal) {
-        await _notificationService.scheduleRenewalAlert(med);
-      }
-    }
-
-    // Dépistages
-    for (final screening in _screeningReminders) {
-      await _notificationService.scheduleScreeningReminder(screening);
-    }
-  }
-
-  // ─── Init mis à jour ───
-  void initWithUser(UserModel user) async {
-    _currentUser = user;
-    _isLoggedIn = true;
-    loadMockMeasurements();
-    loadMockReminders();
-    loadMockNotifications();
-    loadDailyAdvice(user.diseaseType ?? 'all');
-    loadEvents();
-    
-    // Programmer les notifications
-    await scheduleAllReminders();
-    
-    notifyListeners();
-  }
-
-   // ─── Prescriptions ───
+  // ─── Prescriptions ───
   List<Prescription> _prescriptions = [];
   List<Prescription> get prescriptions => _prescriptions;
 
-  // Obtenir les médicaments par ordonnance
-  List<MedicationReminder> getMedicationsByPrescription(String prescriptionId) {
-    return _medicationReminders
-        .where((m) => m.prescriptionId == prescriptionId)
-        .toList();
-  }
+  List<MedicationReminder> getMedicationsByPrescription(String prescriptionId) =>
+      _medicationReminders
+          .where((m) => m.prescriptionId == prescriptionId)
+          .toList();
 
-  // Obtenir l'ordonnance d'un médicament
   Prescription? getPrescriptionForMedication(MedicationReminder medication) {
     if (medication.prescriptionId == null) return null;
-    return _prescriptions.firstWhere(
-      (p) => p.id == medication.prescriptionId,
-      orElse: () => _prescriptions.first, // Fallback
-    );
+    try {
+      return _prescriptions
+          .firstWhere((p) => p.id == medication.prescriptionId);
+    } catch (_) {
+      return _prescriptions.isNotEmpty ? _prescriptions.first : null;
+    }
   }
 
   void loadMockPrescriptions() {
@@ -307,52 +302,106 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Supprime ordonnance + annule alarmes de tous ses médicaments
   void deletePrescription(String prescriptionId) {
-    _prescriptions.removeWhere((p) => p.id == prescriptionId);
-    // Supprimer aussi les médicaments liés
-    _medicationReminders.removeWhere((m) => m.prescriptionId == prescriptionId);
-    notifyListeners();
-  }
-
-  void updateMedicationReminder(MedicationReminder updated) {
-    final idx = _medicationReminders.indexWhere((m) => m.id == updated.id);
-    if (idx != -1) {
-      _notificationService.cancelMedicationReminders(_medicationReminders[idx]); // ← annuler ancienne
-      _medicationReminders[idx] = updated;
-      for (final time in updated.intakeTimes) {
-        _notificationService.scheduleMedicationReminder(updated, time); // ← planifier nouvelle
-      }
-      notifyListeners();
+    final meds = getMedicationsByPrescription(prescriptionId);
+    for (final med in meds) {
+      _notif.cancelMedicationReminders(med);
     }
-  }
- 
-    void deleteMedicationReminder(String id) {
-    final med = _medicationReminders.firstWhere((m) => m.id == id, orElse: null);
-    if (med != null) _notificationService.cancelMedicationReminders(med); 
-    _medicationReminders.removeWhere((m) => m.id == id);
+    _prescriptions.removeWhere((p) => p.id == prescriptionId);
+    _medicationReminders
+        .removeWhere((m) => m.prescriptionId == prescriptionId);
     notifyListeners();
   }
 
-  // Méthode helper pour grouper les médicaments par ordonnance
   Map<String, List<MedicationReminder>> get medicationsByPrescription {
     final Map<String, List<MedicationReminder>> grouped = {};
-    
     for (final med in _medicationReminders) {
-      final prescriptionId = med.prescriptionId ?? 'no_prescription';
-      if (!grouped.containsKey(prescriptionId)) {
-        grouped[prescriptionId] = [];
-      }
-      grouped[prescriptionId]!.add(med);
+      grouped.putIfAbsent(med.prescriptionId ?? 'no_prescription', () => [])
+          .add(med);
     }
-    
     return grouped;
   }
 
-  void updateUserLocation(String gpsLocation) {
-    if (_currentUser != null) {
-      _currentUser = _currentUser!.copyWith(gpsLocation: gpsLocation);
-      notifyListeners();
+  // ─── Chargement des reminders mock ───
+  void loadMockReminders() {
+    _screeningReminders = MockData.defaultScreeningReminders;
+    if (isPatient) {
+      loadMockPrescriptions();
+      _medicationReminders = MockData.defaultMedicationReminders;
+      _simpleReminders = MockData.defaultSimpleReminders;
     }
   }
 
+  Future<void> scheduleAllReminders() async {
+    // 🔁 Annule toutes les anciennes notifications (évite doublons)
+    await _notif.cancelAll();
+
+    // ─── Médicaments ───
+    for (final med in _medicationReminders) {
+      for (final time in med.intakeTimes) {
+        await _notif.scheduleMedicationReminder(med, time);
+      }
+      if (med.needsRenewal) {
+        await _notif.scheduleRenewalAlert(med);
+      }
+    }
+
+    // ─── Dépistage ───
+    for (final s in _screeningReminders) {
+      if (!s.isCompleted) {
+        await _notif.scheduleScreeningReminder(s);
+      }
+    }
+
+    // ─── Rappels simples ───
+    for (final r in _simpleReminders) {
+      if (!r.isCompleted) {
+        await _notif.scheduleSimpleReminder(r);
+      }
+    }
+  }
+
+  // ─── Init ───
+  void initWithUser(UserModel user) async {
+    _currentUser = user;
+    _isLoggedIn = true;
+
+    await _notif.initialize();
+
+    // ← Brancher le callback foreground → page in-app
+    _notif.onNotificationReceived = (NotificationModel model) {
+      addNotification(model);
+    };
+
+    // ← Récupérer les notifications reçues pendant que l'app était fermée
+    final pending = await _notif.consumePendingNotifications();
+    for (final n in pending) {
+      _notifications.insert(0, n);
+    }
+
+    loadMockMeasurements();
+    loadMockReminders();
+    loadMockNotifications();
+    loadDailyAdvice(user.diseaseType ?? 'all');
+    loadEvents();
+    await scheduleAllReminders();
+    notifyListeners();
+  }
+
+  /// Programme toutes les alarmes existantes au démarrage
+  Future<void> _scheduleAllExistingAlarms() async {
+    for (final med in _medicationReminders) {
+      for (final time in med.intakeTimes) {
+        await _notif.scheduleMedicationReminder(med, time);
+      }
+      if (med.needsRenewal) await _notif.scheduleRenewalAlert(med);
+    }
+    for (final s in _screeningReminders) {
+      if (!s.isCompleted) await _notif.scheduleScreeningReminder(s);
+    }
+    for (final r in _simpleReminders) {
+      if (!r.isCompleted) await _notif.scheduleSimpleReminder(r);
+    }
+  }
 }

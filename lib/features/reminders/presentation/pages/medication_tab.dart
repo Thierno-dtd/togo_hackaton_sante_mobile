@@ -70,11 +70,7 @@ class MedicationTab extends StatelessWidget {
                   icon: Icons.description,
                   title: 'Aucune ordonnance',
                   subtitle: 'Ajoutez votre première ordonnance pour gérer vos médicaments',
-                  action: ElevatedButton.icon(
-                    onPressed: () => _showAddPrescriptionSheet(context),
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Ajouter une ordonnance'),
-                  ),
+                  
                 )
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),

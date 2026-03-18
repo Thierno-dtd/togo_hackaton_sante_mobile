@@ -23,7 +23,37 @@ class _RemindersPageState extends State<RemindersPage> with SingleTickerProvider
   void initState() {
     super.initState();
     final provider = context.read<AppProvider>();
-    _tabCtrl = TabController(length: provider.isPatient ? 3 : 1, vsync: this, initialIndex: widget.initialTab);
+
+    final length = provider.isPatient ? 3 : 1;
+    final safeIndex = widget.initialTab.clamp(0, length - 1);
+    
+    _tabCtrl = TabController(
+    length: length,
+    vsync: this,
+    initialIndex: safeIndex,
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final provider = context.watch<AppProvider>();
+    final length = provider.isPatient ? 3 : 1;
+
+    if (_tabCtrl.length != length) {
+      _tabCtrl.dispose();
+
+      final safeIndex = widget.initialTab.clamp(0, length - 1);
+
+      _tabCtrl = TabController(
+        length: length,
+        vsync: this,
+        initialIndex: safeIndex,
+      );
+
+      setState(() {});
+    }
   }
 
   @override

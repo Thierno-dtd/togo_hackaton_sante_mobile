@@ -38,6 +38,14 @@ dependencies:
   video_player: ^2.8.2
   image_picker: ^1.0.7
   url_launcher: ^6.3.0
+  android_alarm_manager_plus: ^4.0.0
+  audioplayers: ^6.0.0
+  wakelock_plus: ^1.2.8
+  dio: ^5.4.3 
+  flutter_secure_storage: ^9.2.2 
+  connectivity_plus: ^6.0.3  
+
+  google_sign_in: ^6.2.1
 
 
 dev_dependencies:
@@ -52,3 +60,4 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/sounds/
