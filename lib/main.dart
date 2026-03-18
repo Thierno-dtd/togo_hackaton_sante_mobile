@@ -39,12 +39,14 @@ class LamesseDamaApp extends StatelessWidget {
       themeMode: provider.themeMode,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
+      navigatorKey: AppProvider.navigatorKey,
       routes: {
         '/settings': (_) => const SettingsPage(),
          '/notifications': (_) => const NotificationsPage(),
          '/reminders': (_) => const RemindersPage(),
          '/followup': (_) => const FollowUpPage(),
          '/events': (_) => const EventsPage(),
+         '/login': (_) => const LoginPage(),
       },
       home: _AppRoot(),
     );
@@ -56,7 +58,7 @@ class _AppRoot extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
 
-    if (!provider.isLoggedIn) {
+    if (!provider.isLoggedIn || provider.currentUser == null) {
       return const LoginPage();
     }
 

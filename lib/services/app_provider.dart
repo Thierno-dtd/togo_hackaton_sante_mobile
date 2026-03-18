@@ -7,6 +7,9 @@ import 'notification_service.dart';
 
 class AppProvider extends ChangeNotifier {
 
+    static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
   final NotificationService _notificationService = NotificationService();
   // ─── Theme ───
   ThemeMode _themeMode = ThemeMode.light;
@@ -34,9 +37,27 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void logout() {
+    void logout() {
+    // 1. Vider la pile jusqu'à la première route (home = _AppRoot)
+    navigatorKey.currentState?.popUntil((route) => route.isFirst);
+ 
+    // 2. Reset complet du state
     _currentUser = null;
     _isLoggedIn = false;
+    _appLockEnabled = false;
+    _localPassword = null;
+    _hypertensionRecords = [];
+    _diabetesRecords = [];
+    _screeningReminders = [];
+    _medicationReminders = [];
+    _simpleReminders = [];
+    _prescriptions = [];
+    _dailyAdvice = [];
+    _events = [];
+    _notifications = [];
+    _lastAssessmentResult = null;
+ 
+    // 3. notifyListeners → _AppRoot rebuild → LoginPage
     notifyListeners();
   }
 

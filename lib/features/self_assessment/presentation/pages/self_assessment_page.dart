@@ -186,7 +186,7 @@ class _SelfAssessmentPageState extends State<SelfAssessmentPage> {
                     color: _categoryColor(q.category),
                   ),
                   const SizedBox(height: 16),
-                  Text(q.question, style: AppTextStyles.h3),
+                  Text(q.question, style: AppTextStyles.h3.copyWith(color: isDark ? AppColors.white : AppColors.textPrimary)),
                   const SizedBox(height: 24),
 
                   // Options
@@ -232,7 +232,7 @@ class _SelfAssessmentPageState extends State<SelfAssessmentPage> {
                               Expanded(
                                 child: Text(opt.label, style: AppTextStyles.body.copyWith(
                                   color: isSelected
-                                      ? AppColors.primary
+                                      ? (isDark ? AppColors.success : AppColors.primary)
                                       : (isDark ? AppColors.darkText : AppColors.textPrimary),
                                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                                 )),
@@ -256,7 +256,7 @@ class _SelfAssessmentPageState extends State<SelfAssessmentPage> {
               label: _currentIndex < _questions.length - 1 ? 'Suivant' : 'Voir mon résultat',
               onPressed: _answers[q.id] != null ? _next : null,
               icon: _currentIndex < _questions.length - 1 ? Icons.arrow_forward : Icons.check_circle,
-              color: _answers[q.id] != null ? AppColors.primary : AppColors.textHint,
+              color: _answers[q.id] != null ? AppColors.primary : AppColors.success,
             ),
           ),
         ],

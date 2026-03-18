@@ -27,12 +27,12 @@ class MedicationTab extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                AppColors.primary.withOpacity(0.1),
+                 AppColors.textHint.withOpacity(0.1),
                 AppColors.accent.withOpacity(0.05),
               ],
             ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+            border: Border.all(color: AppColors.darkBorder.withOpacity(0.2)),
           ),
           child: Row(
             children: [
@@ -40,7 +40,7 @@ class MedicationTab extends StatelessWidget {
                 icon: Icons.description,
                 label: 'Ordonnances',
                 value: prescriptions.length.toString(),
-                color: AppColors.primary,
+                color: isDark ? AppColors.white : AppColors.primary,
               ),
               const SizedBox(width: 20),
               _buildStatItem(
@@ -155,10 +155,10 @@ class MedicationTab extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: prescription.hasImage
                         ? Colors.transparent
-                        : AppColors.primary.withOpacity(0.1),
+                        : AppColors.textHint.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppColors.primary.withOpacity(0.2),
+                      color: AppColors.textHint.withOpacity(0.2),
                     ),
                   ),
                   clipBehavior: Clip.antiAlias,
@@ -173,13 +173,13 @@ class MedicationTab extends StatelessWidget {
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => const Icon(
                                 Icons.description,
-                                color: AppColors.primary,
+                                color: AppColors.textHint,
                                 size: 28,
                               ),
                             )
                           : const Icon(
                               Icons.description,
-                              color: AppColors.primary,
+                              color: AppColors.textHint,
                               size: 28,
                             ),
                 ),
@@ -189,12 +189,14 @@ class MedicationTab extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(prescription.reference, style: AppTextStyles.h4),
+                    Text(prescription.reference, style: AppTextStyles.h4.copyWith(
+                      color: isDark ? AppColors.white : Colors.black,
+                    )),
                     const SizedBox(height: 2),
                     Text(
                       'Dr. ${prescription.doctorName}',
                       style: AppTextStyles.body.copyWith(
-                        color: AppColors.primary,
+                        color: isDark ? AppColors.white : AppColors.primary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -293,7 +295,7 @@ class MedicationTab extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.04),
+                color: isDark ? AppColors.textHint.withOpacity(0.04) : AppColors.primary.withOpacity(0.04),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
@@ -304,7 +306,7 @@ class MedicationTab extends StatelessWidget {
                   Text(
                     '${medications.length} médicament${medications.length > 1 ? 's' : ''}',
                     style: AppTextStyles.caption.copyWith(
-                      color: AppColors.primary,
+                      color: isDark ? AppColors.white : AppColors.primary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -426,6 +428,9 @@ class MedicationTab extends StatelessWidget {
                             decoration: medication.isActive
                                 ? null
                                 : TextDecoration.lineThrough,
+                            color: medication.isActive
+                                ? (isDark ? AppColors.white : Colors.black)
+                                : AppColors.textHint,
                           ),
                         ),
                       ),
@@ -445,13 +450,13 @@ class MedicationTab extends StatelessWidget {
                                   horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
                                 color:
-                                    AppColors.primary.withOpacity(0.08),
+                                    AppColors.textHint.withOpacity(0.08),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}',
                                 style: AppTextStyles.caption.copyWith(
-                                  color: AppColors.primary,
+                                  color: AppColors.accent,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),

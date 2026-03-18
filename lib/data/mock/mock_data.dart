@@ -19,7 +19,7 @@ class MockData {
     const AdviceModel(
       id: 'a3', title: 'Prenez vos médicaments régulièrement',
       content: 'Ne sautez jamais une dose de votre traitement antihypertenseur. Prenez-les à la même heure chaque jour pour maintenir un niveau stable dans votre sang.',
-      category: 'medication', diseaseType: 'hypertension', iconName: 'medication', color: Color(0xFF163344),
+      category: 'medication', diseaseType: 'hypertension', iconName: 'medication', color: Color.fromARGB(255, 127, 167, 190),
     ),
     const AdviceModel(
       id: 'a4', title: 'Surveillez votre tension deux fois par jour',

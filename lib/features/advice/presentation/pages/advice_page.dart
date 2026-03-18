@@ -110,7 +110,7 @@ class _AdvicePageState extends State<AdvicePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(advice.title, style: AppTextStyles.h4),
+                    Text(advice.title, style: AppTextStyles.h4.copyWith(color: isDark ? AppColors.darkText : AppColors.textPrimary)),
                     const SizedBox(height: 4),
                     Row(
                       children: [

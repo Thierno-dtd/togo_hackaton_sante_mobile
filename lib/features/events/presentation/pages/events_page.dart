@@ -57,7 +57,7 @@ class EventsPage extends StatelessWidget {
                   children: [
                     StatusBadge(label: _categoryLabel(event.category), color: catColor),
                     const SizedBox(height: 4),
-                    Text(event.title, style: AppTextStyles.h4, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    Text(event.title, style: AppTextStyles.h4.copyWith(color: dark ? AppColors.white : Colors.black), maxLines: 2, overflow: TextOverflow.ellipsis),
                   ],
                 ),
               ),

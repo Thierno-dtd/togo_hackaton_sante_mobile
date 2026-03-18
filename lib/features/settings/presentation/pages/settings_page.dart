@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/app_utils.dart';
 import '../../../../services/app_provider.dart';
@@ -18,15 +20,25 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
-    final user = provider.currentUser!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (provider.currentUser == null) {
+      return Scaffold(
+        backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
+      );
+    }
+
+    final user = provider.currentUser!;
+    
+
+
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
       appBar: AppBar(
         backgroundColor: isDark ? AppColors.darkSurface : AppColors.primary,
         elevation: 0,
-        title: Text('Paramètres'),
+        title: const Text('Paramètres'),
         titleTextStyle: AppTextStyles.h4.copyWith(color: Colors.white),
         iconTheme: const IconThemeData(
             color: Colors.white,
@@ -340,7 +352,7 @@ class SettingsPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(user.fullName, style: AppTextStyles.h4),
+                    Text(user.fullName, style: AppTextStyles.h4.copyWith(color: isDark ? AppColors.darkText : Colors.black)),
                     Text(user.email, style: AppTextStyles.bodySmall),
                     const SizedBox(height: 6),
                     Wrap(
@@ -554,8 +566,8 @@ class SettingsPage extends StatelessWidget {
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
-              provider.logout();
+               
+               provider.logout();
             },
             child: Text('Déconnexion',
                 style: AppTextStyles.body.copyWith(
@@ -908,9 +920,16 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
   String _disease = 'hypertension';
   final _doctorEmailCtrl = TextEditingController();
   final _hospitalCtrl = TextEditingController();
-  int _step = 1; // 1=form, 2=pending, 3=approved(body data + GPS)
+  int _step = 1; // 1=form, 2=uploading, 3=pending, 4=approved
 
-  // Body data (step 3)
+  // Documents
+  File? _receiptFile;       // reçu de consultation
+  File? _carnetFile;        // carnet de santé (partie médecin)
+  bool _isUploadingReceipt = false;
+  bool _isUploadingCarnet  = false;
+  bool _isSubmitting       = false;
+
+  // Body data (step 4)
   final _weightCtrl = TextEditingController();
   final _heightCtrl = TextEditingController();
   bool _isGettingLocation = false;
@@ -925,17 +944,158 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
     super.dispose();
   }
 
+  // ── Sélection d'un fichier — dialog au lieu de bottom sheet imbriqué ──
+  Future<File?> _pickFile(BuildContext ctx) async {
+    final source = await showDialog<ImageSource>(
+      context: ctx,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+        title: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.upload_file,
+                  color: AppColors.primary, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Text('Selectionner',),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: _sourceBtn(
+                    icon: Icons.camera_alt_outlined,
+                    label: 'Prendre\nen photo',
+                    color: AppColors.primary,
+                    onTap: () => Navigator.pop(ctx, ImageSource.camera),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _sourceBtn(
+                    icon: Icons.photo_library_outlined,
+                    label: 'Depuis\nla galerie',
+                    color: AppColors.accent,
+                    onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuler'),
+          ),
+        ],
+      ),
+    );
+
+    if (source == null) return null;
+
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1200,
+      );
+      if (picked != null) return File(picked.path);
+    } catch (e) {
+      if (ctx.mounted) {
+        AppUtils.showSnackBar(ctx, 'Impossible d\'accéder à la caméra/galerie',
+            isError: true);
+      }
+    }
+    return null;
+  }
+
+  Widget _sourceBtn({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 8),
+            Text(label,
+                style: AppTextStyles.bodySmall.copyWith(
+                    color: color, fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickReceipt(BuildContext ctx) async {
+    setState(() => _isUploadingReceipt = true);
+    try {
+      final file = await _pickFile(ctx);
+      if (file != null) setState(() => _receiptFile = file);
+    } finally {
+      setState(() => _isUploadingReceipt = false);
+    }
+  }
+
+  Future<void> _pickCarnet(BuildContext ctx) async {
+    setState(() => _isUploadingCarnet = true);
+    try {
+      final file = await _pickFile(ctx);
+      if (file != null) setState(() => _carnetFile = file);
+    } finally {
+      setState(() => _isUploadingCarnet = false);
+    }
+  }
+
   void _submit(BuildContext ctx) {
     if (_doctorEmailCtrl.text.trim().isEmpty) {
       AppUtils.showSnackBar(ctx, 'L\'email du médecin est obligatoire',
           isError: true);
       return;
     }
-    setState(() => _step = 2);
+    if (_receiptFile == null) {
+      AppUtils.showSnackBar(ctx, 'Veuillez joindre le reçu de consultation',
+          isError: true);
+      return;
+    }
+    if (_carnetFile == null) {
+      AppUtils.showSnackBar(
+          ctx, 'Veuillez joindre la page du carnet de santé',
+          isError: true);
+      return;
+    }
+
+    // Simuler un upload
+    setState(() { _isSubmitting = true; });
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() { _isSubmitting = false; _step = 3; });
+    });
   }
 
   void _simulateValidation() {
-    setState(() => _step = 3);
+    setState(() => _step = 4);
   }
 
   Future<void> _getLocation() async {
@@ -1007,18 +1167,20 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
   @override
   Widget build(BuildContext context) {
     return _BottomSheetWrapper(
-      title: _step == 3
+      title: _step == 4
           ? 'Compléter votre profil'
           : 'Activation mode patient',
-      icon: _step == 3
+      icon: _step == 4
           ? Icons.person_outline
           : Icons.medical_services_outlined,
       iconColor: AppColors.accent,
       child: _step == 1
           ? _buildForm(context)
-          : _step == 2
+          : _step == 3
               ? _buildPending(context)
-              : _buildProfileCompletion(context),
+              : _step == 4
+                  ? _buildProfileCompletion(context)
+                  : _buildForm(context),
     );
   }
 
@@ -1040,9 +1202,8 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'La validation sera effectuée par votre médecin via l\'interface web.',
-                  style:
-                      AppTextStyles.bodySmall.copyWith(color: AppColors.info),
+                  'Votre médecin recevra votre dossier par email et validera votre demande depuis l\'interface web.',
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.info),
                 ),
               ),
             ],
@@ -1051,27 +1212,21 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
         const SizedBox(height: 20),
 
         // Maladie
-        Text('Maladie concernée',
-            style:
-                AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
+        _fieldLabel('Maladie concernée'),
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(
-                child: _diseaseOption('hypertension', 'Hypertension',
-                    Icons.favorite, AppColors.hypertension)),
+            Expanded(child: _diseaseOption('hypertension', 'Hypertension',
+                Icons.favorite, AppColors.hypertension)),
             const SizedBox(width: 10),
-            Expanded(
-                child: _diseaseOption('diabetes', 'Diabète',
-                    Icons.water_drop_outlined, AppColors.primary)),
+            Expanded(child: _diseaseOption('diabetes', 'Diabète',
+                Icons.water_drop_outlined, AppColors.primary)),
           ],
         ),
         const SizedBox(height: 16),
 
         // Email médecin
-        Text('Email du médecin',
-            style:
-                AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
+        _fieldLabel('Email du médecin *'),
         const SizedBox(height: 6),
         TextField(
           controller: _doctorEmailCtrl,
@@ -1084,9 +1239,7 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
         const SizedBox(height: 16),
 
         // Hôpital
-        Text('Hôpital / Clinique',
-            style:
-                AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
+        _fieldLabel('Hôpital / Clinique'),
         const SizedBox(height: 6),
         TextField(
           controller: _hospitalCtrl,
@@ -1095,115 +1248,258 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
             prefixIcon: Icon(Icons.local_hospital_outlined, size: 20),
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
 
-        // Documents requis
+        // ── Documents à uploader ──
+        Row(
+          children: [
+            Container(
+              width: 3, height: 16,
+              decoration: BoxDecoration(
+                color: AppColors.warning,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text('DOCUMENTS REQUIS *',
+                style: AppTextStyles.label.copyWith(color: AppColors.warning)),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Reçu de consultation
+        _docUploadTile(
+          ctx: ctx,
+          icon: Icons.receipt_long_outlined,
+          label: 'Reçu de consultation',
+          description: 'Photo ou scan du reçu de paiement de votre consultation',
+          file: _receiptFile,
+          isLoading: _isUploadingReceipt,
+          onTap: () => _pickReceipt(ctx),
+          onRemove: () => setState(() => _receiptFile = null),
+        ),
+        const SizedBox(height: 12),
+
+        // Carnet de santé
+        _docUploadTile(
+          ctx: ctx,
+          icon: Icons.menu_book_outlined,
+          label: 'Carnet de santé — partie médecin',
+          description: 'Photo de la page remplie par votre médecin',
+          file: _carnetFile,
+          isLoading: _isUploadingCarnet,
+          onTap: () => _pickCarnet(ctx),
+          onRemove: () => setState(() => _carnetFile = null),
+        ),
+
+        const SizedBox(height: 24),
+        PrimaryButton(
+          label: _isSubmitting ? 'Envoi en cours...' : 'Soumettre la demande',
+          onPressed: _isSubmitting ? null : () => _submit(ctx),
+          icon: _isSubmitting ? null : Icons.send_outlined,
+          color: (_receiptFile != null && _carnetFile != null)
+              ? AppColors.accent
+              : AppColors.textHint,
+          isLoading: _isSubmitting,
+        ),
+      ],
+    );
+  }
+
+  Widget _docUploadTile({
+    required BuildContext ctx,
+    required IconData icon,
+    required String label,
+    required String description,
+    required File? file,
+    required bool isLoading,
+    required VoidCallback onTap,
+    required VoidCallback onRemove,
+  }) {
+    final isDark = Theme.of(ctx).brightness == Brightness.dark;
+    final bool isDone = file != null;
+
+    return GestureDetector(
+      onTap: isDone ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isDone
+              ? AppColors.success.withOpacity(0.06)
+              : (isDark ? AppColors.darkBackground : AppColors.background),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDone
+                ? AppColors.success.withOpacity(0.4)
+                : AppColors.warning.withOpacity(0.35),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            // Icône ou preview
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: isDone
+                  ? Stack(
+                      children: [
+                        Image.file(file!,
+                            width: 52, height: 52, fit: BoxFit.cover),
+                        Positioned.fill(
+                          child: Container(color: Colors.black12),
+                        ),
+                        const Positioned.fill(
+                          child: Icon(Icons.check_circle,
+                              color: Colors.white, size: 20),
+                        ),
+                      ],
+                    )
+                  : Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: isLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(14),
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.warning),
+                            )
+                          : Icon(icon,
+                              color: AppColors.warning, size: 26),
+                    ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: AppTextStyles.body.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: isDone
+                            ? AppColors.success
+                            : (isDark
+                                ? AppColors.darkText
+                                : AppColors.textPrimary),
+                      )),
+                  const SizedBox(height: 3),
+                  Text(
+                    isDone ? '✓ Document ajouté' : description,
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: isDone
+                          ? AppColors.success
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Bouton action
+            if (isDone)
+              GestureDetector(
+                onTap: onRemove,
+                child: Container(
+                  width: 32, height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.close,
+                      color: AppColors.error, size: 16),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text('Ajouter',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.warning,
+                      fontWeight: FontWeight.w700,
+                    )),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _fieldLabel(String label) {
+    return Text(label,
+        style: AppTextStyles.caption
+            .copyWith(color: AppColors.textSecondary));
+  }
+
+  Widget _buildPending(BuildContext ctx) {
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        // Résumé documents uploadés
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: AppColors.warning.withOpacity(0.06),
+            color: AppColors.success.withOpacity(0.06),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.warning.withOpacity(0.2)),
+            border: Border.all(color: AppColors.success.withOpacity(0.25)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  const Icon(Icons.folder_outlined,
-                      color: AppColors.warning, size: 18),
+                  const Icon(Icons.cloud_done_outlined,
+                      color: AppColors.success, size: 18),
                   const SizedBox(width: 8),
-                  Text('Documents à fournir à votre médecin',
+                  Text('Documents envoyés au médecin',
                       style: AppTextStyles.body.copyWith(
-                        color: AppColors.warning,
-                        fontWeight: FontWeight.w700,
-                      )),
+                          color: AppColors.success,
+                          fontWeight: FontWeight.w700)),
                 ],
               ),
-              const SizedBox(height: 12),
-              _docItem(
-                icon: Icons.receipt_long_outlined,
-                label: 'Reçu de consultation',
-                description:
-                    'Le reçu de paiement de votre consultation médicale',
-              ),
               const SizedBox(height: 10),
-              _docItem(
-                icon: Icons.menu_book_outlined,
-                label: 'Carnet de santé (partie médecin)',
-                description:
-                    'La page remplie par votre médecin dans votre carnet de santé',
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.info.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline,
-                        size: 14, color: AppColors.info),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Ces documents doivent être remis physiquement ou envoyés directement à votre médecin. Votre médecin les vérifiera avant de valider votre demande.',
-                        style: AppTextStyles.caption
-                            .copyWith(color: AppColors.info),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _uploadedDocRow(Icons.receipt_long_outlined, 'Reçu de consultation'),
+              const SizedBox(height: 6),
+              _uploadedDocRow(Icons.menu_book_outlined, 'Carnet de santé'),
             ],
           ),
         ),
+        const SizedBox(height: 20),
 
-        const SizedBox(height: 24),
-        PrimaryButton(
-          label: 'Soumettre la demande',
-          onPressed: () => _submit(ctx),
-          icon: Icons.send_outlined,
-          color: AppColors.accent,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPending(BuildContext ctx) {
-    return Column(
-      children: [
-        const SizedBox(height: 16),
         Container(
-          width: 80,
-          height: 80,
+          width: 72, height: 72,
           decoration: BoxDecoration(
             color: AppColors.warning.withOpacity(0.12),
             shape: BoxShape.circle,
           ),
           child: const Icon(Icons.hourglass_top,
-              color: AppColors.warning, size: 36),
+              color: AppColors.warning, size: 34),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         Text('Demande soumise !', style: AppTextStyles.h3),
         const SizedBox(height: 8),
         Text(
-          'Votre demande a été envoyée à votre médecin (${_doctorEmailCtrl.text}). Vous recevrez une notification dès validation.',
+          'Dossier envoyé à ${_doctorEmailCtrl.text}.\nVous serez notifié(e) dès validation.',
           style: AppTextStyles.bodySmall,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 20),
 
-        // Steps
-        _stepItem('1', 'Demande envoyée', true),
-        _stepItem('2', 'Vérification des documents', false),
-        _stepItem('3', 'Validation par le médecin', false),
+        _stepItem('1', 'Demande & documents envoyés', true),
+        _stepItem('2', 'Vérification par le médecin', false),
+        _stepItem('3', 'Validation du médecin', false),
         _stepItem('4', 'Activation du mode patient', false),
 
         const SizedBox(height: 24),
-
-        // Demo button
         PrimaryButton(
           label: 'Simuler une validation (démo)',
           onPressed: _simulateValidation,
@@ -1217,6 +1513,28 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
               style: AppTextStyles.body
                   .copyWith(color: AppColors.textSecondary)),
         ),
+      ],
+    );
+  }
+
+  Widget _uploadedDocRow(IconData icon, String label) {
+    return Row(
+      children: [
+        Container(
+          width: 28, height: 28,
+          decoration: BoxDecoration(
+            color: AppColors.success.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Icon(icon, size: 15, color: AppColors.success),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(label,
+              style: AppTextStyles.body
+                  .copyWith(fontWeight: FontWeight.w500)),
+        ),
+        const Icon(Icons.check_circle, color: AppColors.success, size: 16),
       ],
     );
   }

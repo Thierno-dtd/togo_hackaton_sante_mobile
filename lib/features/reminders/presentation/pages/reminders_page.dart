@@ -120,7 +120,7 @@ class _ScreeningTab extends StatelessWidget {
                         children: [
                           Text(r.title, style: AppTextStyles.h4.copyWith(
                             decoration: r.isCompleted ? TextDecoration.lineThrough : null,
-                            color: r.isCompleted ? AppColors.textHint : null,
+                            color: r.isCompleted ?  AppColors.textHint : (isDark ? AppColors.white : Colors.black),
                           )),
                           const SizedBox(height: 4),
                           Text(r.description, style: AppTextStyles.bodySmall),
@@ -206,7 +206,7 @@ class _SimpleReminderTab extends StatelessWidget {
                                 children: [
                                   Text(r.label, style: AppTextStyles.h4.copyWith(
                                     decoration: r.isCompleted ? TextDecoration.lineThrough : null,
-                                    color: r.isCompleted ? AppColors.textHint : null,
+                                    color: r.isCompleted ? AppColors.textHint : (isDark ? AppColors.white : Colors.black),
                                   )),
                                   const SizedBox(height: 4),
                                   Row(
