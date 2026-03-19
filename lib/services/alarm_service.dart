@@ -13,8 +13,9 @@ import '../data/models/models.dart';
 // DOIT être top-level (pas dans une classe)
 // ════════════════════════════════════════════════════════════
 @pragma('vm:entry-point')
-void alarmCallback(int id, Map<String, dynamic> params) async {
-  // Déclencher le son et la notification plein écran
+void alarmCallback(int id) async {
+  final params = await AlarmService.getAlarmParams(id);
+  if (params == null) return;
   await AlarmService._triggerAlarm(id, params);
 }
 
@@ -70,7 +71,6 @@ class AlarmService {
       exact: true,
       wakeup: true,         // ← réveille l'appareil même en veille
       rescheduleOnReboot: true, // ← reprogramme après redémarrage
-      params: params,
     );
 
     await _saveAlarmParams(alarmId, params);
@@ -117,11 +117,9 @@ class AlarmService {
   // ════════════════════════════════════════════════════════════
   // ─── Déclencher l'alarme (appelé depuis le callback) ───
   // ════════════════════════════════════════════════════════════
-  static Future<void> _triggerAlarm(
-      int id, Map<String, dynamic> params) async {
+  static Future<void> _triggerAlarm(int id, Map<String, dynamic> params) async {
     _isRinging = true;
 
-    // 1. Afficher une notification plein écran
     final plugin = FlutterLocalNotificationsPlugin();
     await plugin.initialize(
       const InitializationSettings(
@@ -129,6 +127,15 @@ class AlarmService {
         iOS: DarwinInitializationSettings(),
       ),
     );
+
+    final ap = plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await ap?.createNotificationChannel(const AndroidNotificationChannel(
+      'alarm_channel_persistent',
+      'Alarmes',
+      importance: Importance.max,
+      playSound: false,
+      enableVibration: true,
+    ));
 
     await plugin.show(
       id,
@@ -141,10 +148,10 @@ class AlarmService {
           importance: Importance.max,
           priority: Priority.max,
           category: AndroidNotificationCategory.alarm,
-          fullScreenIntent: true,      // ← ouvre l'écran d'alarme
-          ongoing: true,               // ← ne peut pas être swipée
-          autoCancel: false,           // ← reste jusqu'à action
-          playSound: false,            // on gère le son nous-mêmes
+          fullScreenIntent: true,
+          ongoing: true,
+          autoCancel: false,
+          playSound: false,      // ✅ on gère le son nous-mêmes
           enableVibration: true,
           vibrationPattern: Int64List.fromList([0, 500, 300, 500, 300, 500]),
           actions: [
@@ -170,35 +177,33 @@ class AlarmService {
       ),
       payload: 'alarm_${params['type']}_$id',
     );
-
-    // 2. Démarrer le son persistant
+    
     await _startSound();
-
-    // 3. Vibration continue pendant max 5 minutes
     _startVibrationLoop();
   }
-
   static Future<void> _startSound() async {
     _audioPlayer?.dispose();
     _audioPlayer = AudioPlayer();
-
-    // Utilise le son d'alarme du système ou un fichier local
-    await _audioPlayer!.setReleaseMode(ReleaseMode.loop); // ← boucle infinie
+    await _audioPlayer!.setReleaseMode(ReleaseMode.loop);
     await _audioPlayer!.setVolume(1.0);
 
+    // ✅ Option 1 : son dans android/app/src/main/res/raw/alarm.mp3
+    // C'est la méthode la plus fiable depuis un isolate background
     try {
-      // Son d'alarme local (à placer dans assets/sounds/alarm.mp3)
-      await _audioPlayer!.play(AssetSource('sounds/alarm.mp3'));
-    } catch (_) {
-      // Fallback : son de notification système
-      try {
-        await _audioPlayer!.play(
-          UrlSource('android.resource://com.example.lamesse_dama_mobile/raw/alarm'),
-        );
-      } catch (_) {
-        // Dernier fallback : AudioPlayer avec un bip répété
-        debugPrint('Son d\'alarme non trouvé — vibration uniquement');
-      }
+      await _audioPlayer!.play(
+        UrlSource('android.resource://com.example.lamesse_dama_mobile/raw/alarm'),
+      );
+      return;
+    } catch (_) {}
+
+    // ✅ Option 2 : son système Android de secours
+    try {
+      await _audioPlayer!.play(
+        UrlSource('android.resource://android/raw/fallbackring'),
+      );
+    } catch (e) {
+      // Vibration seule — acceptable en dernier recours
+      debugPrint('Alarm sound unavailable: $e');
     }
   }
 

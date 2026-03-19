@@ -1,6 +1,3 @@
-// lib/services/app_provider.dart
-// Version fusionnée : mock + repositories + alarmes + notifications
-
 import 'package:flutter/material.dart';
 import '../data/models/models.dart';
 import '../data/mock/mock_data.dart';
@@ -95,7 +92,7 @@ class AppProvider extends ChangeNotifier {
 
     // ── Initialiser les services ──
     await _notif.initialize();
-    await AlarmService.initialize();
+    //await AlarmService.initialize();
 
     // ── Brancher le callback foreground → page in-app ──
     _notif.onNotificationReceived = (model) => addNotification(model);

@@ -1,6 +1,3 @@
-// lib/features/alarm/alarm_screen.dart
-// Écran plein écran qui s'affiche quand l'alarme sonne
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

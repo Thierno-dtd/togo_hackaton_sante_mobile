@@ -10,9 +10,11 @@ import 'services/app_provider.dart';
 import 'features/auth/presentation/pages/login_page.dart';
 import 'features/settings/presentation/pages/settings_page.dart';
 import 'navigation/main_navigation.dart';
+import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 
-void main() {
+void main() async{
   WidgetsFlutterBinding.ensureInitialized();
+  await AndroidAlarmManager.initialize();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,

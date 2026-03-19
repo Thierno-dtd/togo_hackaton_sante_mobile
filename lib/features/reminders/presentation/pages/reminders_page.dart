@@ -74,6 +74,7 @@ void didChangeDependencies() {
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
       appBar: AppAppBar(
         title: const Text('Rappels'),
+        ispatient: provider.currentUser?.isPatient ?? false,
         bottom: TabBar(
           controller: _tabCtrl,
           labelStyle: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600, fontSize: 12),

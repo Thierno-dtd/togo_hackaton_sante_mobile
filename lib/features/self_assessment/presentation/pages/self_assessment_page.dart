@@ -122,6 +122,7 @@ class _SelfAssessmentPageState extends State<SelfAssessmentPage> {
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
       appBar: AppAppBar(
         title: const Text('Bilan de santé'),
+        ispatient: provider.currentUser?.isPatient ?? false,
       ),
       body: Column(
         children: [

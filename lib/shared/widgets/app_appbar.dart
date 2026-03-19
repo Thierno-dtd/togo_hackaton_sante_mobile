@@ -7,12 +7,14 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
   final Widget title;
   final TabBar? tabBar;
   final PreferredSizeWidget? bottom;
+  final ispatient;
 
   const AppAppBar({
     super.key,
     required this.title,
     this.tabBar,
     this.bottom,
+    this.ispatient = false,
   });
 
   @override
@@ -31,6 +33,7 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
       title: title,
       
       actions: [
+        if(ispatient)
         _NotifAction(provider: provider),
 
         IconButton(

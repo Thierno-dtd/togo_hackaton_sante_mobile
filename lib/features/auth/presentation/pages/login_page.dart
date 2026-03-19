@@ -53,10 +53,6 @@ class _LoginPageState extends State<LoginPage>
     super.dispose();
   }
 
-  // ════════════════════════════════════════════════════════════
-  // ─── Actions ───
-  // ════════════════════════════════════════════════════════════
-
   Future<void> _handleLogin() async {
     setState(() => _isLoading = true);
     final result = await _authService.loginWithEmail(
@@ -144,9 +140,6 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  // ════════════════════════════════════════════════════════════
-  // ─── Build ───
-  // ════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;

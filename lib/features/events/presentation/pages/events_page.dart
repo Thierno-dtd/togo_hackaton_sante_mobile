@@ -19,7 +19,7 @@ class EventsPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
-      appBar: const AppAppBar(title: Text('Événements')),
+      appBar: AppAppBar(title: const Text('Événements'), ispatient: provider.currentUser?.isPatient ?? false,),
       body: events.isEmpty
           ? const EmptyState(icon: Icons.event, title: 'Aucun événement')
           : ListView.separated(

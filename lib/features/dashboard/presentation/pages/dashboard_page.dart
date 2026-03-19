@@ -92,6 +92,7 @@ class DashboardPage extends StatelessWidget {
                               ],
                             ),
                           ),
+                          if(user.isPatient)
                           Container(
                             padding: const EdgeInsets.all(1),
                             decoration: BoxDecoration(

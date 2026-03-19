@@ -42,7 +42,7 @@ class _FollowUpPageState extends State<FollowUpPage>
       backgroundColor:
           isDark ? AppColors.darkBackground : AppColors.background,
       appBar: AppAppBar(
-       
+         ispatient: provider.currentUser?.isPatient ?? false,
         // ─── TITRE seul, sans le bouton + ───
         title: Row(
           mainAxisSize: MainAxisSize.min,

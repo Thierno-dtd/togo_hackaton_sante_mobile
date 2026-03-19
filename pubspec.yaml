@@ -52,7 +52,24 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.0
 
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo.png"
+
+flutter_native_splash:
+  color: "#1E4060" 
+  image: assets/logo.png
+
+  android: true
+  ios: true
+
+  android_12:
+    image: assets/logo.png
+    icon_background_color: "#1E4060"
 
 
 flutter:
@@ -61,3 +78,4 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/sounds/
+    - assets/logo.png

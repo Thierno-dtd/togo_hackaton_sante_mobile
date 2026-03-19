@@ -41,6 +41,7 @@ class _AdvicePageState extends State<AdvicePage> {
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
       appBar: AppAppBar(
         title: const Text('Conseils santé'),
+        ispatient: provider.currentUser?.isPatient ?? false,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: SizedBox(
