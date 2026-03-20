@@ -298,8 +298,31 @@ class _AddSimpleReminderSheetState extends State<_AddSimpleReminderSheet> {
   DateTime _date = DateTime.now();
   TimeOfDay _time = TimeOfDay.now();
 
+  String? _message;
+  bool _isError = false;
+
+  void _showMessage(String msg, {required bool isError}) {
+    setState(() {
+      _message = msg;
+      _isError = isError;
+    });
+  }
+
   Future<void> _save() async {
-  if (_labelCtrl.text.isEmpty) return;
+  if (_labelCtrl.text.trim().isEmpty) {
+     _showMessage('Le libellé ne doit pas etre vide', isError: true);
+    return;
+  }
+
+  if (_date == null) {
+     _showMessage('Veuillez selectionner une date', isError: true);
+    return;
+  }
+
+  if (_time == null) {
+     _showMessage('LVeuillez preciser l\'heure du rappel', isError: true);
+    return;
+  }
 
   final rem = SimpleReminder(
     id: const Uuid().v4(),
@@ -316,8 +339,7 @@ class _AddSimpleReminderSheetState extends State<_AddSimpleReminderSheet> {
 
   AppUtils.showSnackBar(widget.outerContext, 'Rappel ajouté');
 }
-
-  @override
+@override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
@@ -342,60 +364,109 @@ class _AddSimpleReminderSheetState extends State<_AddSimpleReminderSheet> {
             ),
           ),
           const AppDivider(),
+
+          // ─── Zone message d'erreur / succès ───
+          if (_message != null)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _isError ? AppColors.error : AppColors.success,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isError ? Icons.error_outline : Icons.check_circle_outline,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _message!,
+                      style: AppTextStyles.body.copyWith(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  TextField(controller: _labelCtrl,
-                    decoration: const InputDecoration(labelText: 'Libellé du rappel', prefixIcon: Icon(Icons.label_outline, size: 20))),
+                  TextField(
+                    controller: _labelCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Libellé du rappel',
+                      prefixIcon: Icon(Icons.label_outline, size: 20),
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Expanded(child: GestureDetector(
-                        onTap: () async {
-                          final d = await showDatePicker(context: context, initialDate: _date,
-                            firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)));
-                          if (d != null) setState(() => _date = d);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: isDark ? AppColors.darkBackground : AppColors.background,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.border),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () async {
+                            final d = await showDatePicker(
+                              context: context,
+                              initialDate: _date,
+                              firstDate: DateTime.now(),
+                              lastDate: DateTime.now().add(const Duration(days: 365)),
+                            );
+                            if (d != null) setState(() => _date = d);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: isDark ? AppColors.darkBackground : AppColors.background,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.border),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.calendar_today, size: 16, color: AppColors.primary),
+                                const SizedBox(width: 8),
+                                Text(AppUtils.formatDate(_date), style: AppTextStyles.body),
+                              ],
+                            ),
                           ),
-                          child: Row(children: [
-                            const Icon(Icons.calendar_today, size: 16, color: AppColors.primary),
-                            const SizedBox(width: 8),
-                            Text(AppUtils.formatDate(_date), style: AppTextStyles.body),
-                          ]),
                         ),
-                      )),
+                      ),
                       const SizedBox(width: 12),
-                      Expanded(child: GestureDetector(
-                        onTap: () async {
-                          final t = await showTimePicker(context: context, initialTime: _time);
-                          if (t != null) setState(() => _time = t);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: isDark ? AppColors.darkBackground : AppColors.background,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.border),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () async {
+                            final t = await showTimePicker(context: context, initialTime: _time);
+                            if (t != null) setState(() => _time = t);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: isDark ? AppColors.darkBackground : AppColors.background,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.border),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.access_time, size: 16, color: AppColors.primary),
+                                const SizedBox(width: 8),
+                                Text(AppUtils.formatTime(_time), style: AppTextStyles.body),
+                              ],
+                            ),
                           ),
-                          child: Row(children: [
-                            const Icon(Icons.access_time, size: 16, color: AppColors.primary),
-                            const SizedBox(width: 8),
-                            Text(AppUtils.formatTime(_time), style: AppTextStyles.body),
-                          ]),
                         ),
-                      )),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 24),
-                  PrimaryButton(label: 'Enregistrer le rappel', onPressed: _save, icon: Icons.save_outlined, color: AppColors.accent),
+                  PrimaryButton(
+                    label: 'Enregistrer le rappel',
+                    onPressed: _save,
+                    icon: Icons.save_outlined,
+                    color: AppColors.accent,
+                  ),
                 ],
               ),
             ),

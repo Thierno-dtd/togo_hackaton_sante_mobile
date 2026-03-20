@@ -934,6 +934,39 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
   final _heightCtrl = TextEditingController();
   bool _isGettingLocation = false;
   String? _locationPreview;
+  
+  final List<String> hospitals = [
+  'CHU Sylvanus Olympio - Lomé',
+  'Hôpital de Bè - Lomé',
+  'Hôpital de Tokoin - Lomé',
+  'Hôpital Régional Agoè-Nyivé - Lomé',
+  'Clinique Agoè - Lomé',
+  'Hôpital Général Lomé Commune - Lomé',
+  'Clinique Gbossimé - Lomé',
+  'Hôpital Régional Kara - Kara',
+  'Hôpital Régional Sokodé - Sokodé',
+  'Hôpital de Tsévié - Tsévié',
+  'Clinique de Lomé-Est - Lomé',
+  'Hôpital de Kpalimé - Kpalimé',
+  'Clinique Atakpamé - Atakpamé',
+  'Hôpital de Dapaong - Dapaong',
+  'Clinique de Mango - Mango',
+  'Hôpital de Sotouboua - Sotouboua',
+  'Clinique de Tabligbo - Tabligbo',
+  'Hôpital de Bassar - Bassar',
+  'Hôpital de Blitta - Blitta',
+  'Hôpital de Pagouda - Pagouda',
+  'Hôpital de Aného - Aného',
+  'Hôpital de Tsévié Sud - Tsévié',
+  'Clinique de Kévé - Kévé',
+  'Clinique de Lomé-Centre - Lomé',
+  'Hôpital de Niamtougou - Niamtougou',
+  'Clinique de Sokodé Sud - Sokodé',
+  'Hôpital de Tchamba - Tchamba',
+  'Hôpital de Bassar Nord - Bassar',
+  'Clinique de Kara Ouest - Kara',
+  'Hôpital de Dapaong Nord - Dapaong',
+];
 
   @override
   void dispose() {
@@ -1246,16 +1279,30 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
         const SizedBox(height: 16),
 
         // Hôpital
-        _fieldLabel('Hôpital / Clinique'),
-        const SizedBox(height: 6),
-        TextField(
-          controller: _hospitalCtrl,
-          decoration: const InputDecoration(
-            hintText: 'Ex: CHU Sylvanus Olympio',
-            prefixIcon: Icon(Icons.local_hospital_outlined, size: 20),
-          ),
-        ),
-        const SizedBox(height: 24),
+        _fieldLabel('Hôpital / Clinique *'),
+      const SizedBox(height: 6),
+      Autocomplete<String>(
+        optionsBuilder: (TextEditingValue textEditingValue) {
+          if (textEditingValue.text.isEmpty) return const Iterable<String>.empty();
+          return hospitals.where((h) => h.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+        },
+        fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+          _hospitalCtrl.text = controller.text;
+          return TextField(
+            controller: controller,
+            focusNode: focusNode,
+            decoration: const InputDecoration(
+              hintText: 'Ex: CHU Sylvanus Olympio',
+              prefixIcon: Icon(Icons.local_hospital_outlined, size: 20),
+            ),
+          );
+        },
+        onSelected: (selection) {
+          _hospitalCtrl.text = selection;
+        },
+      ),
+      const SizedBox(height: 24),
+
 
         // ── Documents à uploader ──
         Row(

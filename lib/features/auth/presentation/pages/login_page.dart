@@ -54,6 +54,17 @@ class _LoginPageState extends State<LoginPage>
   }
 
   Future<void> _handleLogin() async {
+    if (_loginEmailCtrl.text.trim().isEmpty ||
+          _loginPassCtrl.text.trim().isEmpty) {
+        _showMessage('Veuillez remplir tous les champs', isError: true);
+        return;
+      }
+
+      if (!_loginEmailCtrl.text.contains('@')) {
+        _showMessage('Email invalide', isError: true);
+        return;
+      }
+
     setState(() => _isLoading = true);
     final result = await _authService.loginWithEmail(
       email: _loginEmailCtrl.text,
@@ -72,6 +83,36 @@ class _LoginPageState extends State<LoginPage>
   }
 
   Future<void> _handleRegister() async {
+    if (_regFirstNameCtrl.text.trim().isEmpty ||
+          _regLastNameCtrl.text.trim().isEmpty ||
+          _regEmailCtrl.text.trim().isEmpty ||
+          _regPhoneCtrl.text.trim().isEmpty ||
+          _regPassCtrl.text.trim().isEmpty ||
+          _regConfirmPassCtrl.text.trim().isEmpty) {
+        _showMessage('Veuillez remplir tous les champs obligatoires', isError: true);
+        return;
+      }
+
+      if (!_regEmailCtrl.text.contains('@')) {
+        _showMessage('Email invalide', isError: true);
+        return;
+      }
+
+      if (_regPassCtrl.text.length < 6) {
+        _showMessage('Mot de passe trop court (min 6 caractères)', isError: true);
+        return;
+      }
+
+      if (_regPassCtrl.text != _regConfirmPassCtrl.text) {
+        _showMessage('Les mots de passe ne correspondent pas', isError: true);
+        return;
+      }
+
+      if (_regPhoneCtrl.text.length < 8) {
+        _showMessage('Numéro de téléphone invalide', isError: true);
+        return;
+      }
+
     setState(() => _isLoading = true);
     final result = await _authService.register(
       firstName: _regFirstNameCtrl.text,
