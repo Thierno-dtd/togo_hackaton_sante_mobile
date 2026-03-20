@@ -12,21 +12,17 @@ import 'features/auth/presentation/pages/login_page.dart';
 import 'features/settings/presentation/pages/settings_page.dart';
 import 'navigation/main_navigation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'features/alarm/alarm_screen.dart';
 import 'services/alarm_service.dart';
 
-void main() async{
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
 
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
-    await NotificationService.requestBatteryOptimizationExemption();
-  });
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
   ));
+
   runApp(
     ChangeNotifierProvider(
       create: (_) => AppProvider(),
@@ -51,31 +47,30 @@ class LamesseDamaApp extends StatelessWidget {
       navigatorKey: AppProvider.navigatorKey,
       routes: {
         '/settings': (_) => const SettingsPage(),
-         '/notifications': (_) => const NotificationsPage(),
-         '/reminders': (_) => const RemindersPage(),
-         '/followup': (_) => const FollowUpPage(),
-         '/events': (_) => const EventsPage(),
-         '/login': (_) => const LoginPage(),
+        '/notifications': (_) => const NotificationsPage(),
+        '/reminders': (_) => const RemindersPage(),
+        '/followup': (_) => const FollowUpPage(),
+        '/events': (_) => const EventsPage(),
+        '/login': (_) => const LoginPage(),
       },
-      home: _AppRoot(),
+      home: const _AppRoot(),
     );
   }
 }
 
 class _AppRoot extends StatelessWidget {
+  const _AppRoot();
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
-
     if (!provider.isLoggedIn || provider.currentUser == null) {
       return const LoginPage();
     }
-
     return const _AppLockGate();
   }
 }
 
-// ─── App Lock Gate ───
 class _AppLockGate extends StatefulWidget {
   const _AppLockGate();
 
@@ -87,62 +82,75 @@ class _AppLockGateState extends State<_AppLockGate>
     with WidgetsBindingObserver {
   bool _isLocked = false;
 
-  // Dans main.dart, ajoute ce listener dans initState de _AppLockGate :
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initAlarmListener();
+    _initNotificationListener();
+    // Demander exemption batterie après le premier frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService.requestBatteryOptimizationExemption();
+    });
   }
 
-  void _initAlarmListener() {
+  void _initNotificationListener() {
     FlutterLocalNotificationsPlugin().initialize(
       const InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        iOS: DarwinInitializationSettings(),
       ),
       onDidReceiveNotificationResponse: (response) {
-        final payload = response.payload ?? '';
-        final actionId = response.actionId ?? '';
-
-        if (!payload.startsWith('alarm|')) return;
-
-        if (actionId == 'stop_alarm') {
-          AlarmService.stopAlarm();
-          return;
-        }
-
-        if (actionId == 'snooze_alarm') {
-          final parts = payload.split('|');
-          final id = parts.length > 2 ? int.tryParse(parts[2]) ?? 0 : 0;
-          AlarmService.getAlarmParams(id).then((params) {
-            if (params != null) AlarmService.snoozeAlarm(id, params);
-          });
-          return;
-        }
-
-        // Tap sur la notification → ouvre AlarmScreen
-        _openAlarmScreen(payload);
+        _handleNotificationResponse(response);
       },
+      onDidReceiveBackgroundNotificationResponse: onBackgroundNotification,
     );
   }
 
-  void _openAlarmScreen(String payload) async {
-    final parts = payload.split('|');
-    final id = parts.length > 2 ? int.tryParse(parts[2]) ?? 0 : 0;
-    final params = await AlarmService.getAlarmParams(id) ?? {};
-    final title = params['title'] ?? parts.length > 3 ? parts[3] : 'Alarme';
-    final body = params['body'] ?? '';
+  void _handleNotificationResponse(NotificationResponse response) {
+    final payload = response.payload ?? '';
+    final actionId = response.actionId ?? '';
 
-    AppProvider.navigatorKey.currentState?.push(
-      MaterialPageRoute(
-        builder: (_) => AlarmScreen(
-          title: title.toString(),
-          body: body.toString(),
-          alarmId: id,
-          params: params,
-        ),
-      ),
-    );
+    debugPrint('📲 Notification tappée: payload=$payload action=$actionId');
+
+    // Actions boutons
+    if (actionId == 'stop_alarm' || actionId == 'taken' || actionId == 'done') {
+      AlarmService.stopAlarm();
+      return;
+    }
+
+    if (actionId == 'snooze' || actionId == 'snooze_alarm') {
+      // Snooze géré ultérieurement
+      return;
+    }
+
+    // Tap sur la notification elle-même
+    if (payload.isNotEmpty) {
+      _routeFromPayload(payload);
+    }
+  }
+
+  void _routeFromPayload(String payload) {
+    final parts = payload.split('|');
+    final type = parts.isNotEmpty ? parts[0] : '';
+
+    switch (type) {
+      case 'medication':
+      case 'medication_reminder':
+        MainNavigation.goToTab(4, subTabIndex: 1);
+        break;
+      case 'simple':
+      case 'simple_reminder':
+        MainNavigation.goToTab(4, subTabIndex: 2);
+        break;
+      case 'screening':
+        MainNavigation.goToTab(4, subTabIndex: 0);
+        break;
+      case 'renewal':
+        MainNavigation.goToTab(4, subTabIndex: 1);
+        break;
+      default:
+        break;
+    }
   }
 
   @override
@@ -205,7 +213,6 @@ class _AppLockScreenState extends State<_AppLockScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor:
           isDark ? AppColors.darkBackground : AppColors.background,
@@ -257,8 +264,7 @@ class _AppLockScreenState extends State<_AppLockScreen> {
                 onSubmitted: (_) => _tryUnlock(),
                 decoration: InputDecoration(
                   hintText: 'Mot de passe',
-                  prefixIcon:
-                      const Icon(Icons.lock_outline, size: 20),
+                  prefixIcon: const Icon(Icons.lock_outline, size: 20),
                   suffixIcon: IconButton(
                     onPressed: () =>
                         setState(() => _obscure = !_obscure),
@@ -286,8 +292,8 @@ class _AppLockScreenState extends State<_AppLockScreen> {
                   icon: const Icon(Icons.lock_open_outlined, size: 18),
                   label: Text(
                     'Déverrouiller',
-                    style: AppTextStyles.button
-                        .copyWith(color: Colors.white),
+                    style:
+                        AppTextStyles.button.copyWith(color: Colors.white),
                   ),
                 ),
               ),
