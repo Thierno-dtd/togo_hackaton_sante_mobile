@@ -13,6 +13,8 @@ import 'features/settings/presentation/pages/settings_page.dart';
 import 'navigation/main_navigation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'services/alarm_service.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:flutter/material.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +31,32 @@ void main() async {
       child: const LamesseDamaApp(),
     ),
   );
+}
+
+Future<void> initializeService() async {
+  final service = FlutterBackgroundService();
+  await service.configure(
+    iosConfiguration: IosConfiguration(
+      onBackground: onBackground,
+      autoStart: true,
+    ),
+    androidConfiguration: AndroidConfiguration(
+      onStart: onStart,
+      isForegroundMode: true,
+    ),
+  );
+  service.startService();
+}
+
+void onStart(ServiceInstance service) {
+  service.on('stop').listen((event) {
+    service.stopSelf();
+  });
+  service.invoke('update');
+}
+
+bool onBackground(ServiceInstance service) {
+  return true;
 }
 
 class LamesseDamaApp extends StatelessWidget {

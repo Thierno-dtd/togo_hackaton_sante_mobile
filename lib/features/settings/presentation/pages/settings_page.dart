@@ -1298,7 +1298,9 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
           );
         },
         onSelected: (selection) {
-          _hospitalCtrl.text = selection;
+          _hospitalCtrl.text = selection; 
+          FocusScope.of(context).unfocus(); 
+          setState(() {}); 
         },
       ),
       const SizedBox(height: 24),
