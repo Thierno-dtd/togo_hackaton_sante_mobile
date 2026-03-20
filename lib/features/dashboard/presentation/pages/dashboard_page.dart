@@ -12,13 +12,7 @@ class DashboardPage extends StatelessWidget {
 
   // ── Helper navigation vers un onglet ──
   void _goToTab(BuildContext context, int index, {int? subTabIndex}) {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MainNavigation(initialIndex: index, initialReminderTab: subTabIndex),
-      ),
-      (route) => false,
-    );
+    MainNavigation.goToTab(index, subTabIndex: subTabIndex);
   }
 
   @override
@@ -184,7 +178,7 @@ class DashboardPage extends StatelessWidget {
                 SectionHeader(
                   title: "📋 Rappels d'aujourd'hui",
                   actionLabel: 'Voir tout ›',
-                  onAction: () => _goToTab(context, 4),
+                  onAction: () => _goToTab(context, 4, subTabIndex: 2),
                 ),
                 const SizedBox(height: 12),
                 _buildTodayReminders(context, provider, isDark),
@@ -208,105 +202,72 @@ class DashboardPage extends StatelessWidget {
 
   // ─── Patient metrics — ta version originale ───
   Widget _buildPatientMetrics(BuildContext context, AppProvider provider, bool isDark) {
-    final isHypertension = provider.currentUser!.diseaseType == 'hypertension';
+    final diseaseType = provider.currentUser!.diseaseType ?? 'hypertension';
+    final hasBoth = diseaseType == 'both';
 
-    if (isHypertension && provider.hypertensionRecords.isNotEmpty) {
-      final latest = provider.hypertensionRecords.first;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionHeader(title: ' Dernières mesures'),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: MetricCard(
-                  label: 'TENSION',
-                  value: '${latest.systolic.toInt()}/${latest.diastolic.toInt()}',
-                  unit: 'mmHg',
-                  status: AppUtils.bpStatus(latest.systolic, latest.diastolic),
-                  statusColor: AppUtils.bpColor(latest.systolic, latest.diastolic),
-                  icon: Icons.favorite,
-                  iconColor: AppColors.hypertension,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: MetricCard(
-                  label: 'FRÉQUENCE',
-                  value: latest.heartRate.toInt().toString(),
-                  unit: 'bpm',
-                  status: AppUtils.heartRateStatus(latest.heartRate),
-                  statusColor: AppUtils.heartRateColor(latest.heartRate),
-                  icon: Icons.monitor_heart,
-                  iconColor: AppColors.error,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          MetricCard(
-            label: 'TEMPÉRATURE',
-            value: latest.temperature.toStringAsFixed(1),
-            unit: '°C',
-            status: AppUtils.temperatureStatus(latest.temperature),
-            statusColor: AppUtils.temperatureColor(latest.temperature),
-            icon: Icons.thermostat,
-            iconColor: AppColors.warning,
-          ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(title: '📊 Dernières mesures'),
+        const SizedBox(height: 12),
+        // HTA
+        if ((diseaseType == 'hypertension' || hasBoth) &&
+            provider.hypertensionRecords.isNotEmpty) ...[
+          _buildHtaMetrics(provider, isDark),
+          if (hasBoth) const SizedBox(height: 12),
         ],
-      );
-    }
+        // Diabète
+        if ((diseaseType == 'diabetes' || hasBoth) &&
+            provider.diabetesRecords.isNotEmpty)
+          _buildDiabeteMetrics(provider, isDark),
+      ],
+    );
+  }
 
-    if (!isHypertension && provider.diabetesRecords.isNotEmpty) {
-      final latest = provider.diabetesRecords.first;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionHeader(title: '📊 Dernières mesures'),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: MetricCard(
-                  label: 'GLYCÉMIE',
-                  value: latest.glucoseLevel.toStringAsFixed(2),
-                  unit: 'g/L',
-                  status: AppUtils.glucoseStatus(latest.glucoseLevel),
-                  statusColor: AppUtils.glucoseColor(latest.glucoseLevel),
-                  icon: Icons.water_drop,
-                  iconColor: AppColors.info,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: MetricCard(
-                  label: 'FRÉQUENCE',
-                  value: latest.heartRate.toInt().toString(),
-                  unit: 'bpm',
-                  status: AppUtils.heartRateStatus(latest.heartRate),
-                  statusColor: AppUtils.heartRateColor(latest.heartRate),
-                  icon: Icons.monitor_heart,
-                  iconColor: AppColors.error,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          MetricCard(
-            label: 'TEMPÉRATURE',
-            value: latest.temperature.toStringAsFixed(1),
-            unit: '°C',
-            status: AppUtils.temperatureStatus(latest.temperature),
-            statusColor: AppUtils.temperatureColor(latest.temperature),
-            icon: Icons.thermostat,
-            iconColor: AppColors.warning,
-          ),
-        ],
-      );
-    }
+  Widget _buildHtaMetrics(AppProvider provider, bool isDark) {
+    final latest = provider.hypertensionRecords.first;
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: MetricCard(
+              label: 'TENSION', value: '${latest.systolic.toInt()}/${latest.diastolic.toInt()}',
+              unit: 'mmHg', status: AppUtils.bpStatus(latest.systolic, latest.diastolic),
+              statusColor: AppUtils.bpColor(latest.systolic, latest.diastolic),
+              icon: Icons.favorite, iconColor: AppColors.hypertension,
+            )),
+            const SizedBox(width: 12),
+            Expanded(child: MetricCard(
+              label: 'FRÉQUENCE', value: latest.heartRate.toInt().toString(),
+              unit: 'bpm', status: AppUtils.heartRateStatus(latest.heartRate),
+              statusColor: AppUtils.heartRateColor(latest.heartRate),
+              icon: Icons.monitor_heart, iconColor: AppColors.error,
+            )),
+          ],
+        ),
+      ],
+    );
+  }
 
-    return const SizedBox.shrink();
+  Widget _buildDiabeteMetrics(AppProvider provider, bool isDark) {
+    final latest = provider.diabetesRecords.first;
+    return Row(
+      children: [
+        Expanded(child: MetricCard(
+          label: 'GLYCÉMIE', value: latest.glucoseLevel.toStringAsFixed(2),
+          unit: 'g/L', status: AppUtils.glucoseStatus(latest.glucoseLevel),
+          statusColor: AppUtils.glucoseColor(latest.glucoseLevel),
+          icon: Icons.water_drop, iconColor: AppColors.info,
+        )),
+        const SizedBox(width: 12),
+        Expanded(child: MetricCard(
+          label: 'FRÉQUENCE', value: latest.heartRate.toInt().toString(),
+          unit: 'bpm', status: AppUtils.heartRateStatus(latest.heartRate),
+          statusColor: AppUtils.heartRateColor(latest.heartRate),
+          icon: Icons.monitor_heart, iconColor: AppColors.error,
+        )),
+      ],
+    );
   }
 
   // ─── Overdue alert — cliquable ───
@@ -648,7 +609,7 @@ class DashboardPage extends StatelessWidget {
           icon: Icons.medical_information,
           label: 'Patient',
           color: AppColors.success,
-          onTap: () => Navigator.pushNamed(context, '/settings'),
+          onTap: () => Navigator.of(context).pushNamed('/settings'),
         ),
     ];
 

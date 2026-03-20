@@ -30,8 +30,12 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
         color: Colors.white,
       ),
 
-      title: title,
-      
+      title: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: title,
+      ),
+            
       actions: [
         if(ispatient)
         _NotifAction(provider: provider),

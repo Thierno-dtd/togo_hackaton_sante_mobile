@@ -94,6 +94,8 @@ class AppProvider extends ChangeNotifier {
     await _notif.initialize();
     //await AlarmService.initialize();
 
+    await NotificationService.requestBatteryOptimizationExemption();
+
     // ── Brancher le callback foreground → page in-app ──
     _notif.onNotificationReceived = (model) => addNotification(model);
 
@@ -203,34 +205,35 @@ class AppProvider extends ChangeNotifier {
   List<DiabetesRecord>     get diabetesRecords     => _diabetesRecords;
 
   Future<void> _loadMeasurements() async {
-    if (_currentUser == null || !_currentUser!.isPatient) return;
-    _measurementsState = LoadState.loading;
+  if (_currentUser == null || !_currentUser!.isPatient) return;
+  _measurementsState = LoadState.loading;
 
-    final isHypertension = _currentUser!.diseaseType == 'hypertension';
-    if (isHypertension) {
-      final res = await _measureRepo.getHypertensionRecords();
-      if (res.success && res.data != null) {
-        _hypertensionRecords = res.data!;
-        _measurementsState = LoadState.success;
-      } else {
-        _hypertensionRecords = MockData.hypertensionRecords(_currentUser!.id);
-        _measurementsState = LoadState.error;
-        _measurementsError = res.error?.message;
-      }
+  final diseaseType = _currentUser!.diseaseType ?? 'hypertension';
+  final loadHta = diseaseType == 'hypertension' || diseaseType == 'both';
+  final loadDia = diseaseType == 'diabetes' || diseaseType == 'both';
+
+  if (loadHta) {
+    final res = await _measureRepo.getHypertensionRecords();
+    if (res.success && res.data != null) {
+      _hypertensionRecords = res.data!;
     } else {
-      final res = await _measureRepo.getDiabetesRecords();
-      if (res.success && res.data != null) {
-        _diabetesRecords = res.data!;
-        _measurementsState = LoadState.success;
-      } else {
-        _diabetesRecords = MockData.diabetesRecords(_currentUser!.id);
-        _measurementsState = LoadState.error;
-        _measurementsError = res.error?.message;
-      }
+      _hypertensionRecords = MockData.hypertensionRecords(_currentUser!.id);
+      _measurementsError = res.error?.message;
     }
-    notifyListeners();
   }
 
+  if (loadDia) {
+    final res = await _measureRepo.getDiabetesRecords();
+    if (res.success && res.data != null) {
+      _diabetesRecords = res.data!;
+    } else {
+      _diabetesRecords = MockData.diabetesRecords(_currentUser!.id);
+    }
+  }
+
+  _measurementsState = LoadState.success;
+  notifyListeners();
+}
   // Méthode mock conservée pour rétro-compatibilité
   void loadMockMeasurements() {
     if (_currentUser == null) return;
@@ -408,33 +411,24 @@ class AppProvider extends ChangeNotifier {
   // J-7, J-1     → notification silencieuse de rappel
   // Le jour J    → notification + ALARME (son persistant)
   // ════════════════════════════════════════════════════════════
-
   Future<void> _scheduleMedicationAlarms(MedicationReminder med) async {
     for (var i = 0; i < med.intakeTimes.length; i++) {
-      final time = med.intakeTimes[i];
-      // J-1 matin → notification de rappel
-      await _notif.scheduleMedicationReminderNotification(med, time, advanceDays: 1);
-      // À l'heure exacte → ALARME persistante
-      await AlarmService().scheduleMedicationAlarm(med, time, i);
+      // Utilise NotificationService avec alarmClock
+      await _notif.scheduleMedicationReminder(med, med.intakeTimes[i]);
     }
     if (med.needsRenewal) await _notif.scheduleRenewalAlert(med);
   }
 
-  Future<void> _cancelMedicationAlarms(MedicationReminder med) async {
-    await _notif.cancelMedicationReminders(med);
-    await AlarmService().cancelMedicationAlarms(med);
+  Future<void> _scheduleSimpleAlarm(SimpleReminder reminder) async {
+    await _notif.scheduleSimpleReminder(reminder);
   }
 
-  Future<void> _scheduleSimpleAlarm(SimpleReminder reminder) async {
-    // 1h avant → notification de rappel
-    await _notif.scheduleSimpleReminderNotification(reminder, advanceMinutes: 60);
-    // À l'heure exacte → ALARME persistante
-    await AlarmService().scheduleSimpleAlarm(reminder);
+  Future<void> _cancelMedicationAlarms(MedicationReminder med) async {
+    await _notif.cancelMedicationReminders(med);
   }
 
   Future<void> _cancelSimpleAlarm(String id) async {
     await _notif.cancelSimpleReminder(id);
-    await AlarmService().cancelSimpleAlarm(id);
   }
 
   Future<void> _scheduleAll() async {

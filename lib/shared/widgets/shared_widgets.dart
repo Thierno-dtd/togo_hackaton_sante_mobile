@@ -211,7 +211,14 @@ class MetricCard extends StatelessWidget {
                   color: isDark ? AppColors.darkText : AppColors.textPrimary, fontSize: 22,
                 )),
                 const SizedBox(width: 3),
-                Text(unit, style: AppTextStyles.caption),
+                Expanded(
+                  child: Text(
+                    unit,
+                  style: AppTextStyles.caption,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  ),
+                  )
               ],
             ),
           ],
@@ -262,32 +269,41 @@ class DiseaseTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (diseaseType == 'both') {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _tag('HTA', AppColors.hypertension, AppColors.hypertensionLight, Icons.favorite),
+          const SizedBox(width: 6),
+          _tag('Diabète', AppColors.primary, AppColors.diabetesLight, Icons.water_drop),
+        ],
+      );
+    }
     final isHypertension = diseaseType == 'hypertension';
+    return _tag(
+      isHypertension ? 'Hypertension' : 'Diabète',
+      isHypertension ? AppColors.hypertension : AppColors.diabetes,
+      isHypertension ? AppColors.hypertensionLight : AppColors.diabetesLight,
+      isHypertension ? Icons.favorite : Icons.water_drop,
+    );
+  }
+
+  Widget _tag(String label, Color color, Color bg, IconData icon) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: isHypertension ? AppColors.hypertensionLight : AppColors.diabetesLight,
+        color: bg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: (isHypertension ? AppColors.hypertension : AppColors.diabetes).withOpacity(0.3),
-        ),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            isHypertension ? Icons.favorite : Icons.water_drop,
-            size: 12,
-            color: isHypertension ? AppColors.hypertension : AppColors.diabetes,
-          ),
+          Icon(icon, size: 12, color: color),
           const SizedBox(width: 4),
-          Text(
-            isHypertension ? 'Hypertension' : 'Diabète',
-            style: AppTextStyles.caption.copyWith(
-              color: isHypertension ? AppColors.hypertension : AppColors.diabetes,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          Text(label, style: AppTextStyles.caption.copyWith(
+            color: color, fontWeight: FontWeight.w700,
+          )),
         ],
       ),
     );

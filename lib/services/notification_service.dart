@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 import 'dart:convert';
+import 'package:flutter/services.dart';
 import '../data/models/models.dart';
 import '../data/models/notification_model.dart';
 
@@ -76,12 +77,44 @@ class NotificationService {
     _initialized = true;
   }
 
+
+  // Ajoute dans la classe NotificationService :
+Future<void> showTestNotification() async {
+  await initialize();
+  await _plugin.show(
+    999,
+    '🔔 Test notification',
+    'Si tu vois ceci, les notifications fonctionnent !',
+    NotificationDetails(
+      android: AndroidNotificationDetails(
+        _notifChannel.id,
+        _notifChannel.name,
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      ),
+    ),
+  );
+}
+
   void _onForeground(NotificationResponse response) {
     debugPrint('Foreground notif: ${response.payload}');
     if (response.payload == null) return;
     final model = _payloadToNotificationModel(response.payload!);
     if (model != null) onNotificationReceived?.call(model);
   }
+
+
+
+// Ajoute dans la classe NotificationService :
+static Future<void> requestBatteryOptimizationExemption() async {
+  try {
+    const platform = MethodChannel('com.example.lamesse_dama_mobile/battery');
+    await platform.invokeMethod('requestIgnoreBatteryOptimization');
+  } catch (e) {
+    debugPrint('Battery optimization error: $e');
+  }
+}
 
   Future<List<NotificationModel>> consumePendingNotifications() async {
     final prefs = await SharedPreferences.getInstance();
@@ -104,121 +137,210 @@ class NotificationService {
     return null;
   }
 
-  Future<void> scheduleMedicationReminder(MedicationReminder medication, TimeOfDay time) async {
+  // ─── Médicaments : notification immédiate + schedulée ───
+  Future<void> scheduleMedicationReminder(
+      MedicationReminder medication, TimeOfDay time) async {
     await initialize();
     final idx = medication.intakeTimes.indexOf(time);
+    final tzTime = _nextTime(time);
+
     await _plugin.zonedSchedule(
       _medId(medication.id, idx),
-      'Prise de médicament',
+      '💊 Prise de médicament',
       '${medication.medicationName} ${medication.dosage}',
-      _nextTime(time),
+      tzTime,
       NotificationDetails(
         android: AndroidNotificationDetails(
-          _alarmMedChannel.id, _alarmMedChannel.name,
-          importance: Importance.max, priority: Priority.max,
+          _alarmMedChannel.id,
+          _alarmMedChannel.name,
+          importance: Importance.max,
+          priority: Priority.max,
+          icon: '@mipmap/ic_launcher',
+          color: const Color(0xFF163344),
+          playSound: true,
+          enableVibration: true,
+          vibrationPattern: Int64List.fromList([0, 500, 200, 500]),
+          fullScreenIntent: true,
           category: AndroidNotificationCategory.alarm,
-          icon: '@mipmap/ic_launcher', color: const Color(0xFF163344),
-          playSound: true, enableVibration: true,
-          vibrationPattern: Int64List.fromList([0, 500, 200, 500, 200, 1000]),
-          fullScreenIntent: true, autoCancel: true,
           actions: const [
-            AndroidNotificationAction('taken', 'Pris ✓', cancelNotification: true),
-            AndroidNotificationAction('snooze', 'Snooze 10 min', cancelNotification: true),
+            AndroidNotificationAction(
+              'taken', 'Pris ✓',
+              cancelNotification: true,
+            ),
+            AndroidNotificationAction(
+              'snooze', 'Snooze 10 min',
+              cancelNotification: true,
+            ),
           ],
         ),
         iOS: const DarwinNotificationDetails(
-          presentAlert: true, presentBadge: true, presentSound: true,
+          presentAlert: true,
+          presentSound: true,
           interruptionLevel: InterruptionLevel.timeSensitive,
         ),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
-      payload: 'medication|${medication.id}|${medication.medicationName}|${medication.dosage}',
+      payload:
+          'medication|${medication.id}|${medication.medicationName}|${medication.dosage}',
     );
+
+    debugPrint(
+        '✅ Notif médicament programmée: ${medication.medicationName} à ${time.hour}:${time.minute.toString().padLeft(2, '0')}');
   }
 
+  // ─── Rappel simple ───
   Future<void> scheduleSimpleReminder(SimpleReminder reminder) async {
     await initialize();
-    final d = tz.TZDateTime(tz.local,
-      reminder.date.year, reminder.date.month, reminder.date.day,
-      reminder.time.hour, reminder.time.minute,
+
+    final alarmTime = DateTime(
+      reminder.date.year,
+      reminder.date.month,
+      reminder.date.day,
+      reminder.time.hour,
+      reminder.time.minute,
     );
-    if (d.isBefore(tz.TZDateTime.now(tz.local))) return;
+
+    if (alarmTime.isBefore(DateTime.now())) {
+      debugPrint('⚠️ Rappel dans le passé ignoré: ${reminder.label}');
+      return;
+    }
+
+    final tzTime = tz.TZDateTime.from(alarmTime, tz.local);
+
     await _plugin.zonedSchedule(
-      _simpleId(reminder.id), 'Rappel', reminder.label, d,
+      _simpleId(reminder.id),
+      '🔔 Rappel',
+      reminder.label,
+      tzTime,
       NotificationDetails(
         android: AndroidNotificationDetails(
-          _alarmReminderChannel.id, _alarmReminderChannel.name,
-          importance: Importance.max, priority: Priority.max,
+          _alarmReminderChannel.id,
+          _alarmReminderChannel.name,
+          importance: Importance.max,
+          priority: Priority.max,
+          icon: '@mipmap/ic_launcher',
+          color: const Color(0xFF10B981),
+          playSound: true,
+          enableVibration: true,
+          vibrationPattern: Int64List.fromList([0, 500, 200, 500]),
+          fullScreenIntent: true,
           category: AndroidNotificationCategory.alarm,
-          icon: '@mipmap/ic_launcher', color: const Color(0xFF10B981),
-          playSound: true, enableVibration: true,
-          vibrationPattern: Int64List.fromList([0, 500, 200, 500, 200, 1000]),
-          fullScreenIntent: true, autoCancel: true,
-          actions: const [AndroidNotificationAction('done', 'OK ✓', cancelNotification: true)],
+          actions: const [
+            AndroidNotificationAction(
+              'done', 'OK ✓',
+              cancelNotification: true,
+            ),
+          ],
         ),
         iOS: const DarwinNotificationDetails(
-          presentAlert: true, presentBadge: true, presentSound: true,
+          presentAlert: true,
+          presentSound: true,
           interruptionLevel: InterruptionLevel.timeSensitive,
         ),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
       payload: 'simple|${reminder.id}|${reminder.label}',
     );
+
+    debugPrint('✅ Notif simple programmée: ${reminder.label} à $alarmTime');
   }
 
-  Future<void> scheduleRenewalAlert(MedicationReminder med) async {
-    await initialize();
-    if (!med.needsRenewal) return;
-    await _plugin.show(
-      _renewId(med.id),
-      'Stock faible — ${med.medicationName}',
-      'Il vous reste ${med.stock} unité(s). Pensez à renouveler.',
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          _notifChannel.id, _notifChannel.name,
-          importance: Importance.high, priority: Priority.high,
-          color: const Color(0xFFF59E0B), icon: '@mipmap/ic_launcher', autoCancel: true,
-        ),
-        iOS: const DarwinNotificationDetails(presentAlert: true, presentSound: true),
-      ),
-      payload: 'renewal|${med.id}|${med.medicationName}',
-    );
-  }
-
+  // ─── Dépistage ───
   Future<void> scheduleScreeningReminder(ScreeningReminder reminder) async {
     await initialize();
-    final daysUntil = reminder.dueDate.difference(DateTime.now()).inDays;
+
+    final daysUntil =
+        reminder.dueDate.difference(DateTime.now()).inDays;
     if (daysUntil < 0 || reminder.isCompleted) return;
-    for (final offset in [7, 1, 0].where((d) => daysUntil >= d)) {
-      final nd = tz.TZDateTime(tz.local,
-        reminder.dueDate.year, reminder.dueDate.month,
-        reminder.dueDate.day - offset, 9, 0,
-      );
-      if (nd.isBefore(tz.TZDateTime.now(tz.local))) continue;
-      final label = offset == 0 ? "Aujourd'hui" : offset == 1 ? 'Demain' : 'Dans $offset jours';
+
+    // Notifier à J-7, J-1, et J
+    for (final offset in [7, 1, 0]) {
+      if (daysUntil < offset) continue;
+
+      final notifDate = tz.TZDateTime(
+        tz.local,
+        reminder.dueDate.year,
+        reminder.dueDate.month,
+        reminder.dueDate.day,
+        9, // 9h du matin
+        0,
+      ).subtract(Duration(days: offset));
+
+      if (notifDate.isBefore(tz.TZDateTime.now(tz.local))) continue;
+
+      final label = offset == 0
+          ? "Aujourd'hui"
+          : offset == 1
+              ? 'Demain'
+              : 'Dans $offset jours';
+
       await _plugin.zonedSchedule(
         _screeningId(reminder.id, offset),
-        'Dépistage — $label',
-        '${reminder.title}: ${reminder.description}',
-        nd,
+        '🏥 Dépistage — $label',
+        '${reminder.title} : ${reminder.description}',
+        notifDate,
         NotificationDetails(
           android: AndroidNotificationDetails(
-            _notifChannel.id, _notifChannel.name,
-            importance: Importance.high, priority: Priority.high,
-            color: const Color(0xFF3B82F6), icon: '@mipmap/ic_launcher', autoCancel: true,
+            _notifChannel.id,
+            _notifChannel.name,
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+            color: const Color(0xFF3B82F6),
+            playSound: true,
+            enableVibration: true,
           ),
-          iOS: const DarwinNotificationDetails(presentAlert: true, presentSound: true),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentSound: true,
+          ),
         ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        androidScheduleMode: AndroidScheduleMode.alarmClock,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
         payload: 'screening|${reminder.id}|${reminder.title}',
       );
+
+      debugPrint(
+          '✅ Notif dépistage programmée: ${reminder.title} dans $offset jours');
     }
   }
 
+  // ─── Renouvellement médicament ───
+  Future<void> scheduleRenewalAlert(MedicationReminder med) async {
+    await initialize();
+    if (!med.needsRenewal) return;
+
+    await _plugin.show(
+      _renewId(med.id),
+      '⚠️ Stock faible — ${med.medicationName}',
+      'Il reste ${med.stock} unité(s). Pensez à renouveler votre ordonnance.',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _notifChannel.id,
+          _notifChannel.name,
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+          color: const Color(0xFFF59E0B),
+          playSound: true,
+          enableVibration: true,
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentSound: true,
+        ),
+      ),
+      payload: 'renewal|${med.id}|${med.medicationName}',
+    );
+
+    debugPrint('✅ Alerte renouvellement: ${med.medicationName}');
+  }
   Future<void> cancelMedicationReminders(MedicationReminder med) async {
     for (var i = 0; i < med.intakeTimes.length; i++) await _plugin.cancel(_medId(med.id, i));
     await _plugin.cancel(_renewId(med.id));
@@ -330,7 +452,7 @@ extension NotificationServiceExtension on NotificationService {
         ),
         iOS: const DarwinNotificationDetails(presentAlert: true, presentSound: true),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
       uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       payload: 'medication_reminder|${medication.id}|${medication.medicationName}|${medication.dosage}',
     );
@@ -367,7 +489,7 @@ extension NotificationServiceExtension on NotificationService {
         ),
         iOS: const DarwinNotificationDetails(presentAlert: true, presentSound: true),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
       uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       payload: 'simple_reminder|${reminder.id}|${reminder.label}',
     );

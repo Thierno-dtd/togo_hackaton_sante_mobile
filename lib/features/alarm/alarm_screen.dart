@@ -31,32 +31,34 @@ class _AlarmScreenState extends State<AlarmScreen>
   String _currentTime = '';
   bool _isStopping = false;
 
-  @override
+ @override
   void initState() {
     super.initState();
 
-    // Garder l'écran allumé
     WakelockPlus.enable();
-
-    // Forcer l'orientation portrait
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-
-    // Masquer la barre de statut
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
-    // Animation pulsation
+    // ── Démarrer le son natif ──
+    AlarmService.startNativeAlarm(
+      title: widget.title,
+      body: widget.body,
+      type: widget.params['type'] ?? 'simple',
+    );
+
+    // Animation
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
     )..repeat(reverse: true);
-
     _pulse = Tween<double>(begin: 0.95, end: 1.05).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
 
-    // Heure courante
+    // Heure
     _updateTime();
-    _timeTimer = Timer.periodic(const Duration(seconds: 1), (_) => _updateTime());
+    _timeTimer =
+        Timer.periodic(const Duration(seconds: 1), (_) => _updateTime());
   }
 
   void _updateTime() {

@@ -11,7 +11,7 @@ class UserModel {
   final String residence;
   final String district;
   String healthStatus; // non_patient | patient | pending_validation
-  String? diseaseType; // hypertension | diabetes
+  String? diseaseType; // hypertension | diabetes | both
   double? weight;
   double? height;
   String? gpsLocation;
@@ -41,6 +41,10 @@ class UserModel {
 
   bool get isPatient => healthStatus == 'patient';
   bool get isPendingValidation => healthStatus == 'pending_validation';
+
+  bool get hasHypertension => diseaseType == 'hypertension' || diseaseType == 'both';
+  bool get hasDiabetes => diseaseType == 'diabetes' || diseaseType == 'both';
+  bool get hasBoth => diseaseType == 'both';
 
   UserModel copyWith({
     String? firstName,

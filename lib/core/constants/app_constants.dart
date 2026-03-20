@@ -14,6 +14,7 @@ class AppConstants {
   // Disease types
   static const String hypertension = 'hypertension';
   static const String diabetes = 'diabetes';
+  static const String both = 'both';
 
   // User health status
   static const String nonPatient = 'non_patient';

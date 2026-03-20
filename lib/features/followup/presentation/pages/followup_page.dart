@@ -17,84 +17,280 @@ class FollowUpPage extends StatefulWidget {
 
 class _FollowUpPageState extends State<FollowUpPage>
     with SingleTickerProviderStateMixin {
-  late TabController _tabCtrl;
+  TabController? _tabCtrl;
+  bool _hasBoth = false;
+  bool _isHypertension = true;
 
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
+    _init();
+  }
+
+  void _init() {
+    final diseaseType =
+        context.read<AppProvider>().currentUser?.diseaseType ?? 'hypertension';
+    _hasBoth = diseaseType == 'both';
+    _isHypertension = diseaseType == 'hypertension';
+    _tabCtrl?.dispose();
+    _tabCtrl = TabController(length: _hasBoth ? 4 : 2, vsync: this);
   }
 
   @override
   void dispose() {
-    _tabCtrl.dispose();
+    _tabCtrl?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
-    final isHypertension =
-        provider.currentUser?.diseaseType == 'hypertension';
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Sécurité absolue
+    if (_tabCtrl == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       backgroundColor:
           isDark ? AppColors.darkBackground : AppColors.background,
       appBar: AppAppBar(
-         ispatient: provider.currentUser?.isPatient ?? false,
-        // ─── TITRE seul, sans le bouton + ───
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Suivi de santé',),
-            const SizedBox(width: 10),
-            if (provider.currentUser?.diseaseType != null)
-              DiseaseTag(diseaseType: provider.currentUser!.diseaseType!),
-          ],
-        ),
-        // ─── Notification + Settings dans l'AppBar ───
-       bottom: TabBar(
-          controller: _tabCtrl,
-          labelStyle: AppTextStyles.body
-              .copyWith(fontWeight: FontWeight.w600),
+        ispatient: provider.currentUser?.isPatient ?? false,
+        title: const Text('Suivi de santé'),
+        bottom: TabBar(
+          controller: _tabCtrl!,
+          isScrollable: _hasBoth,
+          tabAlignment:
+              _hasBoth ? TabAlignment.start : TabAlignment.fill,
+          labelStyle:
+              AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
           labelColor: AppColors.white,
           unselectedLabelColor: AppColors.textHint,
           indicatorColor: AppColors.primary,
-          tabs: const [
-            Tab(text: 'Graphiques'),
-            Tab(text: 'Historique'),
-          ],
+          tabs: _hasBoth
+              ? const [
+                  Tab(text: 'HTA Graph.'),
+                  Tab(text: 'HTA Hist.'),
+                  Tab(text: 'Diabète Graph.'),
+                  Tab(text: 'Diabète Hist.'),
+                ]
+              : const [
+                  Tab(text: 'Graphiques'),
+                  Tab(text: 'Historique'),
+                ],
         ),
       ),
       body: TabBarView(
-        controller: _tabCtrl,
-        children: [
-          _ChartsTab(isHypertension: isHypertension),
-          _HistoryTab(isHypertension: isHypertension),
-        ],
+        controller: _tabCtrl!,
+        children: _hasBoth
+            ? [
+                _ChartsTab(isHypertension: true),
+                _HistoryTab(isHypertension: true),
+                _ChartsTab(isHypertension: false),
+                _HistoryTab(isHypertension: false),
+              ]
+            : [
+                _ChartsTab(isHypertension: _isHypertension),
+                _HistoryTab(isHypertension: _isHypertension),
+              ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () =>
-            _showAddMeasurementSheet(context, isHypertension),
+        onPressed: () => _showAddMeasurementSheet(context),
         backgroundColor: AppColors.accent,
         icon: const Icon(Icons.add, color: Colors.white),
-        label: Text('Ajouter une mesure',
-            style: AppTextStyles.button
-                .copyWith(color: Colors.white)),
+        label: Text(
+          'Ajouter une mesure',
+          style: AppTextStyles.button.copyWith(color: Colors.white),
+        ),
       ),
     );
   }
 
-  void _showAddMeasurementSheet(
-      BuildContext context, bool isHypertension) {
+  void _showAddMeasurementSheet(BuildContext context) {
+  if (_hasBoth) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _ChooseMeasurementTypeSheet(
+        onChooseHypertension: () {
+          Navigator.pop(sheetContext);
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (!mounted) return;
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) =>
+                  _HypertensionMeasurementSheet(outerContext: context),
+            );
+          });
+        },
+        onChooseDiabetes: () {
+          Navigator.pop(sheetContext);
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (!mounted) return;
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) =>
+                  _DiabetesMeasurementSheet(outerContext: context),
+            );
+          });
+        },
+      ),
+    );
+  } else {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => isHypertension
+      builder: (_) => _isHypertension
           ? _HypertensionMeasurementSheet(outerContext: context)
           : _DiabetesMeasurementSheet(outerContext: context),
+    );
+  }
+}
+}
+
+void _showAddMeasurementSheet(BuildContext context, String diseaseType) {
+  if (diseaseType == 'both') {
+    // Proposer un choix
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ChooseMeasurementSheet(outerContext: context),
+    );
+  } else {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => diseaseType == 'hypertension'
+          ? _HypertensionMeasurementSheet(outerContext: context)
+          : _DiabetesMeasurementSheet(outerContext: context),
+    );
+  }
+}
+class _ChooseMeasurementSheet extends StatelessWidget {
+  final BuildContext outerContext;
+  const _ChooseMeasurementSheet({required this.outerContext});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _sheetHandle(isDark),
+          const SizedBox(height: 8),
+          Text('Quelle mesure ajouter ?', style: AppTextStyles.h4),
+          const SizedBox(height: 6),
+          Text('Sélectionnez le type de mesure à enregistrer',
+              style: AppTextStyles.bodySmall),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: _MeasureTypeButton(
+                  icon: Icons.favorite,
+                  label: 'Tension\nartérielle',
+                  color: AppColors.hypertension,
+                  onTap: () {
+                    Navigator.pop(context);
+                    showModalBottomSheet(
+                      context: outerContext,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (_) => _HypertensionMeasurementSheet(
+                          outerContext: outerContext),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _MeasureTypeButton(
+                  icon: Icons.water_drop,
+                  label: 'Glycémie',
+                  color: AppColors.info,
+                  onTap: () {
+                    Navigator.pop(context);
+                    showModalBottomSheet(
+                      context: outerContext,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (_) =>
+                          _DiabetesMeasurementSheet(outerContext: outerContext),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+}
+
+class _MeasureTypeButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _MeasureTypeButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              label,
+              style: AppTextStyles.body.copyWith(
+                color: color,
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -124,6 +320,63 @@ class _NotifAction extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _ChooseMeasurementTypeSheet extends StatelessWidget {
+  final VoidCallback onChooseHypertension;
+  final VoidCallback onChooseDiabetes;
+
+  const _ChooseMeasurementTypeSheet({
+    required this.onChooseHypertension,
+    required this.onChooseDiabetes,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _sheetHandle(isDark),
+          const SizedBox(height: 8),
+          Text('Quelle mesure ajouter ?', style: AppTextStyles.h4),
+          const SizedBox(height: 4),
+          Text(
+            'Sélectionnez le type de mesure à enregistrer',
+            style: AppTextStyles.bodySmall,
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: _MeasureTypeButton(
+                  icon: Icons.favorite,
+                  label: 'Tension\nartérielle',
+                  color: AppColors.hypertension,
+                  onTap: onChooseHypertension,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _MeasureTypeButton(
+                  icon: Icons.water_drop,
+                  label: 'Glycémie',
+                  color: AppColors.info,
+                  onTap: onChooseDiabetes,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

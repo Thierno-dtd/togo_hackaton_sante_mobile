@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:lamesse_dama_mobile/features/events/presentation/pages/events_page.dart';
 import 'package:lamesse_dama_mobile/features/followup/presentation/pages/followup_page.dart';
 import 'package:lamesse_dama_mobile/features/reminders/presentation/pages/reminders_page.dart';
+import 'package:lamesse_dama_mobile/services/notification_service.dart';
 import 'features/notifications/presentation/pages/notifications_page.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
@@ -10,11 +11,17 @@ import 'services/app_provider.dart';
 import 'features/auth/presentation/pages/login_page.dart';
 import 'features/settings/presentation/pages/settings_page.dart';
 import 'navigation/main_navigation.dart';
-import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'features/alarm/alarm_screen.dart';
+import 'services/alarm_service.dart';
 
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
-  await AndroidAlarmManager.initialize();
+  
+
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    await NotificationService.requestBatteryOptimizationExemption();
+  });
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
@@ -80,10 +87,62 @@ class _AppLockGateState extends State<_AppLockGate>
     with WidgetsBindingObserver {
   bool _isLocked = false;
 
+  // Dans main.dart, ajoute ce listener dans initState de _AppLockGate :
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _initAlarmListener();
+  }
+
+  void _initAlarmListener() {
+    FlutterLocalNotificationsPlugin().initialize(
+      const InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      ),
+      onDidReceiveNotificationResponse: (response) {
+        final payload = response.payload ?? '';
+        final actionId = response.actionId ?? '';
+
+        if (!payload.startsWith('alarm|')) return;
+
+        if (actionId == 'stop_alarm') {
+          AlarmService.stopAlarm();
+          return;
+        }
+
+        if (actionId == 'snooze_alarm') {
+          final parts = payload.split('|');
+          final id = parts.length > 2 ? int.tryParse(parts[2]) ?? 0 : 0;
+          AlarmService.getAlarmParams(id).then((params) {
+            if (params != null) AlarmService.snoozeAlarm(id, params);
+          });
+          return;
+        }
+
+        // Tap sur la notification → ouvre AlarmScreen
+        _openAlarmScreen(payload);
+      },
+    );
+  }
+
+  void _openAlarmScreen(String payload) async {
+    final parts = payload.split('|');
+    final id = parts.length > 2 ? int.tryParse(parts[2]) ?? 0 : 0;
+    final params = await AlarmService.getAlarmParams(id) ?? {};
+    final title = params['title'] ?? parts.length > 3 ? parts[3] : 'Alarme';
+    final body = params['body'] ?? '';
+
+    AppProvider.navigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (_) => AlarmScreen(
+          title: title.toString(),
+          body: body.toString(),
+          alarmId: id,
+          params: params,
+        ),
+      ),
+    );
   }
 
   @override

@@ -50,7 +50,7 @@ class SettingsPage extends StatelessWidget {
           // ── 🚨 Urgence ──
           _buildEmergencyCard(context, isDark),
           const SizedBox(height: 20),
-
+          
           // ── Profile header ──
           _buildProfileCard(context, provider, user, isDark),
           const SizedBox(height: 20),
@@ -172,7 +172,7 @@ class SettingsPage extends StatelessWidget {
                     title: 'Statut patient',
                     subtitle: user.diseaseType == 'hypertension'
                         ? 'Hypertension'
-                        : 'Diabète',
+                        : (user.diseaseType == 'diabete'? 'Diabète' : 'Hypertension & Diabète'),
                     trailing:
                         const StatusBadge(label: 'Actif', color: AppColors.accent),
                   ),
@@ -1214,13 +1214,20 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
         // Maladie
         _fieldLabel('Maladie concernée'),
         const SizedBox(height: 8),
-        Row(
+        Column(
           children: [
-            Expanded(child: _diseaseOption('hypertension', 'Hypertension',
-                Icons.favorite, AppColors.hypertension)),
-            const SizedBox(width: 10),
-            Expanded(child: _diseaseOption('diabetes', 'Diabète',
-                Icons.water_drop_outlined, AppColors.primary)),
+            Row(
+              children: [
+                Expanded(child: _diseaseOption('hypertension', 'Hypertension',
+                    Icons.favorite, AppColors.hypertension)),
+                const SizedBox(width: 10),
+                Expanded(child: _diseaseOption('diabetes', 'Diabète',
+                    Icons.water_drop_outlined, AppColors.primary)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _diseaseOption('both', 'Les deux pathologies',
+                Icons.medical_services_outlined, AppColors.warning),
           ],
         ),
         const SizedBox(height: 16),

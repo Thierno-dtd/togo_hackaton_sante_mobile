@@ -16,17 +16,41 @@ class MainNavigation extends StatefulWidget {
 
   const MainNavigation({super.key, this.initialIndex = 0, this.initialReminderTab,});
 
+   static _MainNavigationState? _instance;
+  static void goToTab(int index, {int? subTabIndex}) {
+    _instance?._navigateTo(index, subTabIndex: subTabIndex);
+  }
+
   @override
   State<MainNavigation> createState() => _MainNavigationState();
 }
 
 class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
+  int? _reminderTab;
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    _reminderTab = widget.initialReminderTab;
+    MainNavigation._instance = this;
+  }
+
+  @override
+  void dispose() {
+    if (MainNavigation._instance == this) {
+      MainNavigation._instance = null;
+    }
+    super.dispose();
+  }
+
+  void _navigateTo(int index, {int? subTabIndex}) {
+    if (!mounted) return;
+    setState(() {
+      _selectedIndex = index;
+      _reminderTab = subTabIndex;
+    });
   }
 
   List<_NavItem> _buildNavItems(bool isPatient) {
@@ -59,7 +83,10 @@ class _MainNavigationState extends State<MainNavigation> {
         icon: Icons.notifications_outlined,
         activeIcon: Icons.notifications_rounded,
         label: 'Rappels',
-        page: RemindersPage(initialTab: widget.initialReminderTab ?? 0,),
+        page: RemindersPage(
+          key: ValueKey(_reminderTab),
+          initialTab: _reminderTab ?? 0,
+        ),
       ),
       if (isPatient)
         _NavItem(
