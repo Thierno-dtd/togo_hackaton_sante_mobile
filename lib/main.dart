@@ -31,6 +31,7 @@ void main() async {
   
   final provider = AppProvider();
   await provider.initAppSettings();
+  await provider.checkAutoLogin();
 
   runApp(
     ChangeNotifierProvider.value(
@@ -122,12 +123,16 @@ class LamesseDamaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<AppProvider>();
+    final themeMode = context.select<AppProvider, ThemeMode>(
+      (p) => p.themeMode,
+    );
+    final isLoggedIn = context.read<AppProvider>().isLoggedIn;
+    final hasUser = context.read<AppProvider>().currentUser != null;
 
     return MaterialApp(
       title: 'Lamesse Dama',
       debugShowCheckedModeBanner: false,
-      themeMode: provider.themeMode,
+      themeMode: themeMode,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       navigatorKey: AppProvider.navigatorKey,
@@ -138,22 +143,13 @@ class LamesseDamaApp extends StatelessWidget {
         '/followup': (_) => const FollowUpPage(),
         '/events': (_) => const EventsPage(),
         '/login': (_) => const LoginPage(),
+        '/home': (_) => const MainNavigation(), 
+
       },
-      home: const _AppRoot(),
+      home: isLoggedIn && hasUser
+          ? const _AppLockGate()  
+          : const LoginPage(),
     );
-  }
-}
-
-class _AppRoot extends StatelessWidget {
-  const _AppRoot();
-
-  @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<AppProvider>();
-    if (!provider.isLoggedIn || provider.currentUser == null) {
-      return const LoginPage();
-    }
-    return const _AppLockGate();
   }
 }
 

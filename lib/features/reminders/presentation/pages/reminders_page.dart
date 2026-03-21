@@ -16,7 +16,7 @@ class RemindersPage extends StatefulWidget {
   State<RemindersPage> createState() => _RemindersPageState();
 }
 
-class _RemindersPageState extends State<RemindersPage> with SingleTickerProviderStateMixin {
+class _RemindersPageState extends State<RemindersPage> with TickerProviderStateMixin {
   late TabController _tabCtrl;
 
   @override

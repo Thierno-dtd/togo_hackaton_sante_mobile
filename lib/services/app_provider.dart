@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lamesse_dama_mobile/features/auth/presentation/pages/login_page.dart';
 import 'package:lamesse_dama_mobile/services/auth_service.dart';
 import '../data/models/models.dart';
 import '../data/mock/mock_data.dart';
@@ -96,7 +97,6 @@ class AppProvider extends ChangeNotifier {
     final savedUser = await _localStorage.loadUser();
     if (savedUser != null) {
       await initWithUser(savedUser, fromLocal: true);
-      // Tenter de rafraîchir depuis l'API en arrière-plan (silencieux)
       _refreshFromApi();
       return true;
     }
@@ -133,6 +133,7 @@ class AppProvider extends ChangeNotifier {
   Future<void> initWithUser(UserModel user, {bool fromLocal = false}) async {
     _currentUser = user;
     _isLoggedIn  = true;
+    notifyListeners();
 
     // ── Initialiser les services ──
     await _notif.initialize();
@@ -272,21 +273,22 @@ class AppProvider extends ChangeNotifier {
   // ─── Logout ───
   // ════════════════════════════════════════════════════════════
   Future<void> logout() async {
-  // Désactiver le callback de notifs AVANT tout
   _notif.onNotificationReceived = null;
+  _notif.cancelAll();
+  _authRepo.logout().catchError((_) {});
 
+  // Naviguer AVANT de toucher au state
+  navigatorKey.currentState?.pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const LoginPage()),
+    (route) => false,
+  );
+
+  // Attendre que Flutter détache tous les widgets
+  await Future.delayed(const Duration(milliseconds: 500));
+
+  // Seulement maintenant, reset et notify
   _resetState();
   notifyListeners();
-
-  await Future.delayed(const Duration(milliseconds: 300));
-
-  // Vérifier que le navigator est encore valide
-  if (navigatorKey.currentState?.mounted == true) {
-    navigatorKey.currentState?.popUntil((route) => route.isFirst);
-  }
-
-  _authRepo.logout().catchError((_) {});
-  _notif.cancelAll();
 }
 
   void _resetState() {
@@ -344,16 +346,16 @@ class AppProvider extends ChangeNotifier {
 
   bool verifyPassword(String password) => _localPassword == password;
 
-  void activatePatient(String diseaseType) {
-    if (_currentUser == null) return;
-    _currentUser = _currentUser!.copyWith(
-      healthStatus: AppConstants.patient,
-      diseaseType: diseaseType,
-    );
-    _localStorage.saveUser(_currentUser!);
-    AuthService().updateStoredUser(_currentUser!);
-    notifyListeners();
-  }
+  Future<void> activatePatient(String diseaseType) async {
+  if (_currentUser == null) return;
+  _currentUser = _currentUser!.copyWith(
+    healthStatus: AppConstants.patient,
+    diseaseType: diseaseType,
+  );
+  await _localStorage.saveUser(_currentUser!);
+  await AuthService().updateStoredUser(_currentUser!);
+  notifyListeners();
+}
 
   // ════════════════════════════════════════════════════════════
   // ─── Measurements ───

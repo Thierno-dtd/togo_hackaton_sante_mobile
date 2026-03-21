@@ -565,9 +565,9 @@ class SettingsPage extends StatelessWidget {
                     .copyWith(color: AppColors.textSecondary)),
           ),
           TextButton(
-            onPressed: () {
-              
-               provider.logout();
+            onPressed: ()async {
+               Navigator.pop(context); // ferme le dialog
+              await context.read<AppProvider>().logout();
                
             },
             child: Text('Déconnexion',

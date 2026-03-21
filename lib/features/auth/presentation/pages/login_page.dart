@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lamesse_dama_mobile/navigation/main_navigation.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/constants/app_strings.dart';
@@ -53,38 +54,41 @@ class _LoginPageState extends State<LoginPage>
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
-    FocusScope.of(context).unfocus();
-    
-    if (_loginEmailCtrl.text.trim().isEmpty ||
-          _loginPassCtrl.text.trim().isEmpty) {
-        _showMessage('Veuillez remplir tous les champs', isError: true);
-        return;
-      }
-
-      if (!_loginEmailCtrl.text.contains('@')) {
-        _showMessage('Email invalide', isError: true);
-        return;
-      }
-
-    setState(() => _isLoading = true);
-    final result = await _authService.loginWithEmail(
-      email: _loginEmailCtrl.text,
-      password: _loginPassCtrl.text,
-    );
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    if (result.success && result.user != null) {
-      _showMessage(result.message ?? 'Connexion réussie !', isError: false);
-      await Future.delayed(const Duration(milliseconds: 700));
-      _showMessage( 'Chargement... !', isError: false);
-      if (mounted) context.read<AppProvider>().initWithUser(result.user!);
-    } else {
-      _showMessage(result.message ?? 'Erreur de connexion', isError: true);
+ Future<void> _handleLogin() async {
+  FocusScope.of(context).unfocus();
+  
+  if (_loginEmailCtrl.text.trim().isEmpty ||
+        _loginPassCtrl.text.trim().isEmpty) {
+      _showMessage('Veuillez remplir tous les champs', isError: true);
+      return;
     }
-  }
 
+    if (!_loginEmailCtrl.text.contains('@')) {
+      _showMessage('Email invalide', isError: true);
+      return;
+    }
+
+  setState(() => _isLoading = true);
+  final result = await _authService.loginWithEmail(
+    email: _loginEmailCtrl.text,
+    password: _loginPassCtrl.text,
+  );
+  if (!mounted) return;
+  setState(() => _isLoading = false);
+
+  if (result.success && result.user != null) {
+    _showMessage(result.message ?? 'Connexion réussie !', isError: false);
+    await context.read<AppProvider>().initWithUser(result.user!);
+     if (!mounted) return;
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const MainNavigation()),
+    (route) => false,
+  );
+  } else {
+    _showMessage(result.message ?? 'Erreur de connexion', isError: true);
+  }
+}
+ 
   Future<void> _handleRegister() async {
     if (_regFirstNameCtrl.text.trim().isEmpty ||
           _regLastNameCtrl.text.trim().isEmpty ||
@@ -132,10 +136,14 @@ class _LoginPageState extends State<LoginPage>
     setState(() => _isLoading = false);
 
     if (result.success && result.user != null) {
-      _showMessage(result.message ?? 'Compte créé !', isError: false);
-      await Future.delayed(const Duration(milliseconds: 800));
-      if (mounted) context.read<AppProvider>().initWithUser(result.user!);
-    } else {
+  _showMessage(result.message ?? 'Compte créé !', isError: false);
+  await context.read<AppProvider>().initWithUser(result.user!);
+     if (!mounted) return;
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const MainNavigation()),
+    (route) => false,
+  );
+} else {
       _showMessage(result.message ?? 'Erreur lors de l\'inscription', isError: true);
     }
   }
@@ -147,10 +155,9 @@ class _LoginPageState extends State<LoginPage>
     setState(() => _isGoogleLoading = false);
 
     if (result.success && result.user != null) {
-      _showMessage(result.message ?? 'Connexion réussie !', isError: false);
-      await Future.delayed(const Duration(milliseconds: 600));
-      if (mounted) context.read<AppProvider>().initWithUser(result.user!);
-    } else {
+  _showMessage(result.message ?? 'Connexion réussie !', isError: false);
+  if (mounted) await context.read<AppProvider>().initWithUser(result.user!); // ← ajoute await
+} else {
       _showMessage(result.message ?? 'Erreur Google', isError: true);
     }
   }

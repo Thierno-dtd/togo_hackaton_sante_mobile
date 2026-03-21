@@ -243,7 +243,7 @@ class NotificationService {
         interruptionLevel: InterruptionLevel.timeSensitive,
       ),
     ),
-    androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+    androidScheduleMode: AndroidScheduleMode.alarmClock,
     uiLocalNotificationDateInterpretation:
         UILocalNotificationDateInterpretation.absoluteTime,
 
@@ -384,35 +384,43 @@ class NotificationService {
   // ════════════════════════════════════════════════════════════
   // ─── Renouvellement ───
   // ════════════════════════════════════════════════════════════
-  Future<void> scheduleRenewalAlert(MedicationReminder med) async {
-    await initialize();
-    if (!med.needsRenewal) return;
+ Future<void> scheduleRenewalAlert(MedicationReminder med) async {
+  await initialize();
+  if (!med.needsRenewal) return;
 
-    await _plugin.show(
-      _renewId(med.id),
-      '⚠️ Stock faible — ${med.medicationName}',
-      'Il reste ${med.stock} unité(s). Pensez à renouveler.',
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          _notifChannel.id,
-          _notifChannel.name,
-          importance: Importance.high,
-          priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
-          color: const Color(0xFFF59E0B),
-          playSound: true,
-          enableVibration: true,
-          autoCancel: true,
-        ),
-        iOS: const DarwinNotificationDetails(
-          presentAlert: true,
-          presentSound: true,
-        ),
+  // Vérifier si déjà montré aujourd'hui
+  final prefs = await SharedPreferences.getInstance();
+  final key = 'renewal_shown_${med.id}';
+  final lastShown = prefs.getString(key);
+  final today = DateTime.now().toIso8601String().split('T')[0];
+  if (lastShown == today) return; // déjà montré aujourd'hui
+
+  await prefs.setString(key, today);
+
+  await _plugin.show(
+    _renewId(med.id),
+    '⚠️ Stock faible — ${med.medicationName}',
+    'Il reste ${med.stock} unité(s). Pensez à renouveler.',
+    NotificationDetails(
+      android: AndroidNotificationDetails(
+        _notifChannel.id,
+        _notifChannel.name,
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+        color: const Color(0xFFF59E0B),
+        playSound: true,
+        enableVibration: true,
+        autoCancel: true,
       ),
-      payload: 'renewal|${med.id}|${med.medicationName}',
-    );
-  }
-
+      iOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentSound: true,
+      ),
+    ),
+    payload: 'renewal|${med.id}|${med.medicationName}',
+  );
+}
   // ════════════════════════════════════════════════════════════
   // ─── Annulation ───
   // ════════════════════════════════════════════════════════════
