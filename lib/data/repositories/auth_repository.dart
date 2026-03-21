@@ -1,9 +1,7 @@
-import 'package:dio/dio.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_endpoints.dart';
 import '../../core/network/token_storage.dart';
 import '../models/models.dart';
-import '../mock/mock_data.dart';
 
 class AuthRepository {
   final ApiClient _api = ApiClient();

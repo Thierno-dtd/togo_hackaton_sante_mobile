@@ -95,6 +95,7 @@ class MedicationTab extends StatelessWidget {
           ),
           child: PrimaryButton(
             label: 'Ajouter une ordonnance',
+            color: AppColors.accent,
             onPressed: () => _showAddPrescriptionSheet(context),
             icon: Icons.add,
           ),
@@ -638,6 +639,8 @@ class _AddPrescriptionSheetState extends State<AddPrescriptionSheet> {
   DateTime _prescriptionDate = DateTime.now();
   File? _imageFile;
   bool _isPickingImage = false;
+  String? _message;
+  bool _isError = false;
 
   // Step management: 1 = prescription info, 2 = add medications
   int _step = 1;
@@ -645,6 +648,46 @@ class _AddPrescriptionSheetState extends State<AddPrescriptionSheet> {
 
   // Medications being added in this session
   final List<_TempMedication> _medications = [];
+  
+  final List<String> hospitals = [
+  'CHU Sylvanus Olympio - Lomé',
+  'Hôpital de Bè - Lomé',
+  'Hôpital de Tokoin - Lomé',
+  'Hôpital Régional Agoè-Nyivé - Lomé',
+  'Clinique Agoè - Lomé',
+  'Hôpital Général Lomé Commune - Lomé',
+  'Clinique Gbossimé - Lomé',
+  'Hôpital Régional Kara - Kara',
+  'Hôpital Régional Sokodé - Sokodé',
+  'Hôpital de Tsévié - Tsévié',
+  'Clinique de Lomé-Est - Lomé',
+  'Hôpital de Kpalimé - Kpalimé',
+  'Clinique Atakpamé - Atakpamé',
+  'Hôpital de Dapaong - Dapaong',
+  'Clinique de Mango - Mango',
+  'Hôpital de Sotouboua - Sotouboua',
+  'Clinique de Tabligbo - Tabligbo',
+  'Hôpital de Bassar - Bassar',
+  'Hôpital de Blitta - Blitta',
+  'Hôpital de Pagouda - Pagouda',
+  'Hôpital de Aného - Aného',
+  'Hôpital de Tsévié Sud - Tsévié',
+  'Clinique de Kévé - Kévé',
+  'Clinique de Lomé-Centre - Lomé',
+  'Hôpital de Niamtougou - Niamtougou',
+  'Clinique de Sokodé Sud - Sokodé',
+  'Hôpital de Tchamba - Tchamba',
+  'Hôpital de Bassar Nord - Bassar',
+  'Clinique de Kara Ouest - Kara',
+  'Hôpital de Dapaong Nord - Dapaong',
+];
+
+  void _showMessage(String msg, {required bool isError}) {
+    setState(() {
+      _message = msg;
+      _isError = isError;
+    });
+  }
 
   @override
   void dispose() {
@@ -771,13 +814,11 @@ class _AddPrescriptionSheetState extends State<AddPrescriptionSheet> {
 
   void _savePrescription() {
     if (_referenceCtrl.text.trim().isEmpty) {
-      AppUtils.showSnackBar(context, 'La référence est obligatoire',
-          isError: true);
+      _showMessage('La référence est obligatoire', isError: true);
       return;
     }
     if (_doctorCtrl.text.trim().isEmpty) {
-      AppUtils.showSnackBar(context, 'Le nom du médecin est obligatoire',
-          isError: true);
+      _showMessage('Le nom du médecin est obligatoire', isError: true);
       return;
     }
 
@@ -947,6 +988,31 @@ class _AddPrescriptionSheetState extends State<AddPrescriptionSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (_message != null)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _isError ? AppColors.error : AppColors.success,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isError ? Icons.error_outline : Icons.check_circle_outline,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _message!,
+                      style: AppTextStyles.body.copyWith(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          
           // Référence
           _sectionLabel('Référence *', AppColors.primary),
           const SizedBox(height: 8),
@@ -975,14 +1041,34 @@ class _AddPrescriptionSheetState extends State<AddPrescriptionSheet> {
           // Hôpital
           _sectionLabel('Établissement', AppColors.textSecondary),
           const SizedBox(height: 8),
-          TextField(
-            controller: _hospitalCtrl,
-            decoration: const InputDecoration(
-              hintText: 'Hôpital ou clinique (optionnel)',
-              prefixIcon: Icon(Icons.local_hospital_outlined, size: 20),
-            ),
+
+          Autocomplete<String>(
+            optionsBuilder: (TextEditingValue textEditingValue) {
+              if (textEditingValue.text.isEmpty) return const Iterable<String>.empty();
+              return hospitals.where((h) => h.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+            },
+            fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+
+              return TextField(
+                controller: controller,
+                focusNode: focusNode,
+                onChanged: (value) {
+                  _hospitalCtrl.text = value; 
+                  print("Hospital input: $value");
+                },
+                decoration: const InputDecoration(
+                  hintText: 'Hôpital ou clinique (optionnel)',
+                  prefixIcon: Icon(Icons.local_hospital_outlined, size: 20),
+                ),
+              );
+            },
+            onSelected: (selection) {
+              _hospitalCtrl.text = selection; 
+              FocusScope.of(context).unfocus(); 
+              setState(() {}); 
+            },
           ),
-          const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
           // Date
           _sectionLabel('Date de l\'ordonnance', AppColors.primary),
@@ -1366,6 +1452,15 @@ class _AddMedicationDialogState extends State<_AddMedicationDialog> {
   final _thresholdCtrl = TextEditingController(text: '7');
   bool _hasRenewal = true;
   List<TimeOfDay> _times = [const TimeOfDay(hour: 7, minute: 30)];
+  String? _message;
+  bool _isError = false;
+
+  void _showMessage(String msg, {required bool isError}) {
+    setState(() {
+      _message = msg;
+      _isError = isError;
+    });
+  }
 
   @override
   void dispose() {
@@ -1384,8 +1479,7 @@ class _AddMedicationDialogState extends State<_AddMedicationDialog> {
 
   void _save() {
     if (_nameCtrl.text.trim().isEmpty || _dosageCtrl.text.trim().isEmpty) {
-      AppUtils.showSnackBar(
-          context, 'Nom et dosage sont obligatoires',
+      _showMessage( 'Nom et dosage sont obligatoires',
           isError: true);
       return;
     }
@@ -1437,6 +1531,31 @@ class _AddMedicationDialogState extends State<_AddMedicationDialog> {
             ),
             const AppDivider(),
             const SizedBox(height: 16),
+
+             if (_message != null)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _isError ? AppColors.error : AppColors.success,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isError ? Icons.error_outline : Icons.check_circle_outline,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _message!,
+                      style: AppTextStyles.body.copyWith(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
             // Nom
             TextField(
@@ -1604,6 +1723,16 @@ class _AddMedicationSheetState extends State<AddMedicationSheet> {
   bool _hasRenewal = true;
   List<TimeOfDay> _intakeTimes = [const TimeOfDay(hour: 7, minute: 30)];
 
+  String? _message;
+  bool _isError = false;
+
+  void _showMessage(String msg, {required bool isError}) {
+    setState(() {
+      _message = msg;
+      _isError = isError;
+    });
+  }
+
   @override
   void dispose() {
     _nameCtrl.dispose();
@@ -1622,7 +1751,7 @@ class _AddMedicationSheetState extends State<AddMedicationSheet> {
 
   void _save() {
     if (_nameCtrl.text.trim().isEmpty || _dosageCtrl.text.trim().isEmpty) {
-      AppUtils.showSnackBar(widget.outerContext,
+      _showMessage(
           'Le nom et le dosage sont obligatoires',
           isError: true);
       return;
@@ -1941,6 +2070,16 @@ class _MedicationDetailsSheetState extends State<MedicationDetailsSheet>
   late List<TimeOfDay> _intakeTimes;
   late bool _hasRenewal;
   bool _isEditing = false;
+  
+  String? _message;
+  bool _isError = false;
+
+  void _showMessage(String msg, {required bool isError}) {
+    setState(() {
+      _message = msg;
+      _isError = isError;
+    });
+  }
 
   @override
   void initState() {
@@ -1976,8 +2115,7 @@ class _MedicationDetailsSheetState extends State<MedicationDetailsSheet>
 
   void _saveChanges() {
     if (_nameCtrl.text.trim().isEmpty || _dosageCtrl.text.trim().isEmpty) {
-      AppUtils.showSnackBar(
-          widget.outerContext, 'Nom et dosage sont obligatoires',
+      _showMessage( 'Nom et dosage sont obligatoires',
           isError: true);
       return;
     }
@@ -1997,7 +2135,7 @@ class _MedicationDetailsSheetState extends State<MedicationDetailsSheet>
 
     widget.outerContext.read<AppProvider>().updateMedicationReminder(updatedMed);
     AppUtils.showSnackBar(widget.outerContext, 'Médicament mis à jour');
-    setState(() => _isEditing = false);
+    Navigator.pop(context);
   }
 
   void _deleteMedication() {
@@ -2085,12 +2223,7 @@ class _MedicationDetailsSheetState extends State<MedicationDetailsSheet>
                   ),
                 ),
                 if (!_isEditing) ...[
-                  IconButton(
-                    onPressed: () => setState(() => _isEditing = true),
-                    icon: const Icon(Icons.edit_outlined,
-                        size: 20, color: AppColors.primary),
-                    tooltip: 'Modifier',
-                  ),
+                 
                   IconButton(
                     onPressed: _deleteMedication,
                     icon: const Icon(Icons.delete_outline,
@@ -2554,8 +2687,32 @@ class _MedicationDetailsSheetState extends State<MedicationDetailsSheet>
                               ],
                             ),
                           )),
-
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 12),
+                      if (_message != null)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _isError ? AppColors.error : AppColors.success,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isError ? Icons.error_outline : Icons.check_circle_outline,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _message!,
+                      style: AppTextStyles.body.copyWith(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+                      const SizedBox(height: 12),
                       PrimaryButton(
                         label: 'Enregistrer les modifications',
                         onPressed: _saveChanges,
@@ -2563,24 +2720,7 @@ class _MedicationDetailsSheetState extends State<MedicationDetailsSheet>
                         color: AppColors.accent,
                       ),
                       const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: OutlinedButton.icon(
-                          onPressed: _deleteMedication,
-                          icon: const Icon(Icons.delete_outline,
-                              size: 18),
-                          label: const Text('Supprimer ce médicament'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.error,
-                            side: const BorderSide(color: AppColors.error),
-                            shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      
                     ],
                   ),
                 ),

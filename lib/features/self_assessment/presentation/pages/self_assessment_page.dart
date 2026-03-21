@@ -127,7 +127,7 @@ class _SelfAssessmentPageState extends State<SelfAssessmentPage> {
       body: Column(
         children: [
           Padding(padding: const EdgeInsets.all(10), child: Text(
-            'Répondez à ces questions pour évaluer votre santé ',
+            'évaluez votre santé en quelques questions simples',
             style: AppTextStyles.body.copyWith(
               color: isDark ? AppColors.white : AppColors.textSecondary,
               fontSize: 14,

@@ -920,6 +920,7 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
   String _disease = 'hypertension';
   final _doctorEmailCtrl = TextEditingController();
   final _hospitalCtrl = TextEditingController();
+  bool get _isHospitalValid => hospitals.contains(_hospitalCtrl.text);
   int _step = 1; // 1=form, 2=uploading, 3=pending, 4=approved
 
   // Documents
@@ -1265,20 +1266,7 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
         ),
         const SizedBox(height: 16),
 
-        // Email médecin
-        _fieldLabel('Email du médecin *'),
-        const SizedBox(height: 6),
-        TextField(
-          controller: _doctorEmailCtrl,
-          keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(
-            hintText: 'medecin@exemple.com',
-            prefixIcon: Icon(Icons.email_outlined, size: 20),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Hôpital
+         // Hôpital
         _fieldLabel('Hôpital / Clinique *'),
       const SizedBox(height: 6),
       Autocomplete<String>(
@@ -1287,10 +1275,13 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
           return hospitals.where((h) => h.toLowerCase().contains(textEditingValue.text.toLowerCase()));
         },
         fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-          _hospitalCtrl.text = controller.text;
+          
           return TextField(
             controller: controller,
             focusNode: focusNode,
+            onChanged: (value) {
+              _hospitalCtrl.text = value; 
+            },
             decoration: const InputDecoration(
               hintText: 'Ex: CHU Sylvanus Olympio',
               prefixIcon: Icon(Icons.local_hospital_outlined, size: 20),
@@ -1304,6 +1295,21 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
         },
       ),
       const SizedBox(height: 24),
+
+        // Email médecin
+        _fieldLabel('Email du médecin *'),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _doctorEmailCtrl,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(
+            hintText: 'medecin@exemple.com',
+            prefixIcon: Icon(Icons.email_outlined, size: 20),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+       
 
 
         // ── Documents à uploader ──
@@ -1353,7 +1359,7 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
           label: _isSubmitting ? 'Envoi en cours...' : 'Soumettre la demande',
           onPressed: _isSubmitting ? null : () => _submit(ctx),
           icon: _isSubmitting ? null : Icons.send_outlined,
-          color: (_receiptFile != null && _carnetFile != null)
+          color: (_receiptFile != null && _carnetFile != null && _isHospitalValid)
               ? AppColors.accent
               : AppColors.textHint,
           isLoading: _isSubmitting,

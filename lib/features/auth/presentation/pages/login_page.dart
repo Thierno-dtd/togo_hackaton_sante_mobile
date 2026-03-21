@@ -229,7 +229,7 @@ class _LoginPageState extends State<LoginPage>
                             style: AppTextStyles.h1.copyWith(
                                 color: Colors.white, fontSize: 24)),
                         const SizedBox(height: 4),
-                        Text('Votre santé, notre priorité',
+                        Text('Prévenir et mieux guérir',
                             style: AppTextStyles.bodySmall.copyWith(
                                 color: Colors.white.withOpacity(0.7))),
                       ],
@@ -293,7 +293,7 @@ class _LoginPageState extends State<LoginPage>
           icon: Icons.email_outlined,
           keyboardType: TextInputType.emailAddress,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
 
         // Password
         _passwordField(
@@ -316,8 +316,10 @@ class _LoginPageState extends State<LoginPage>
         const SizedBox(height: 16),
 
         PrimaryButton(
-          label: AppStrings.login,
+          label: _isLoading ? 'Connexion en cours...' : AppStrings.login,
           onPressed: _handleLogin,
+          icon: _isLoading ? null : Icons.login,
+          color: _isLoading ? AppColors.textHint : AppColors.primary ,
           isLoading: _isLoading,
         ),
         const SizedBox(height: 16),
@@ -328,7 +330,7 @@ class _LoginPageState extends State<LoginPage>
 
         // Google
         _googleButton(),
-        const SizedBox(height: 20),
+        const SizedBox(height: 15),
 
         // Switch vers inscription
         _switchModeRow(),

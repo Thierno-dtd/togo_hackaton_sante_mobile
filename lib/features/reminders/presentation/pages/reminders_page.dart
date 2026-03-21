@@ -314,16 +314,6 @@ class _AddSimpleReminderSheetState extends State<_AddSimpleReminderSheet> {
     return;
   }
 
-  if (_date == null) {
-     _showMessage('Veuillez selectionner une date', isError: true);
-    return;
-  }
-
-  if (_time == null) {
-     _showMessage('LVeuillez preciser l\'heure du rappel', isError: true);
-    return;
-  }
-
   final rem = SimpleReminder(
     id: const Uuid().v4(),
     label: _labelCtrl.text.trim(),
@@ -339,6 +329,7 @@ class _AddSimpleReminderSheetState extends State<_AddSimpleReminderSheet> {
 
   AppUtils.showSnackBar(widget.outerContext, 'Rappel ajouté');
 }
+
 @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
