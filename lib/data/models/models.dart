@@ -549,3 +549,40 @@ class Hospital {
     required this.phone,
   });
 }
+
+
+class MedicationIntake {
+  final String id;
+  final String medicationId;
+  final String medicationName;
+  final String dosage;
+  final DateTime takenAt;
+  final bool confirmed; // true = pris, false = sauté
+
+  MedicationIntake({
+    required this.id,
+    required this.medicationId,
+    required this.medicationName,
+    required this.dosage,
+    required this.takenAt,
+    this.confirmed = true,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'medication_id': medicationId,
+    'medication_name': medicationName,
+    'dosage': dosage,
+    'taken_at': takenAt.toIso8601String(),
+    'confirmed': confirmed,
+  };
+
+  static MedicationIntake fromJson(Map<String, dynamic> j) => MedicationIntake(
+    id: j['id'] ?? '',
+    medicationId: j['medication_id'] ?? j['medicationId'] ?? '',
+    medicationName: j['medication_name'] ?? j['medicationName'] ?? '',
+    dosage: j['dosage'] ?? '',
+    takenAt: DateTime.tryParse(j['taken_at'] ?? j['takenAt'] ?? '') ?? DateTime.now(),
+    confirmed: j['confirmed'] ?? true,
+  );
+}

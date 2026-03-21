@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,7 +16,7 @@ const _pendingNotifKey = 'pending_notifications';
 @pragma('vm:entry-point')
 void onBackgroundNotification(NotificationResponse response) async {
   if (response.payload == null) return;
-  final model = _payloadToNotificationModel(response.payload!);
+  final model = payloadToNotificationModel(response.payload!);
   if (model == null) return;
   final prefs = await SharedPreferences.getInstance();
   final existing = prefs.getString(_pendingNotifKey);
@@ -26,10 +27,17 @@ void onBackgroundNotification(NotificationResponse response) async {
   await prefs.setString(_pendingNotifKey, jsonEncode(list));
 }
 
+
+
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
+  // Ajoute en haut de la classe
+  static final StreamController<NotificationModel> _notifStream =
+    StreamController<NotificationModel>.broadcast();
+
+  static Stream<NotificationModel> get notificationStream => _notifStream.stream;
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -77,6 +85,10 @@ class NotificationService {
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Africa/Lome'));
 
+    // Intercepter toutes les notifications qui arrivent en foreground
+    AndroidFlutterLocalNotificationsPlugin? androidPlugin = _plugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+
     // ── Paramètres Android ──
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -119,7 +131,7 @@ class NotificationService {
   void _onForeground(NotificationResponse response) {
     debugPrint('📲 Notif foreground: ${response.payload}');
     if (response.payload == null) return;
-    final model = _payloadToNotificationModel(response.payload!);
+    final model = payloadToNotificationModel(response.payload!);
     if (model != null) onNotificationReceived?.call(model);
   }
 
@@ -189,18 +201,16 @@ class NotificationService {
   // ─── Médicament ───
   // ════════════════════════════════════════════════════════════
   Future<void> scheduleMedicationReminder(
-    MedicationReminder medication, TimeOfDay time, int timeIndex) async {
+  MedicationReminder medication, TimeOfDay time, int timeIndex) async {
   await initialize();
+
+  if (medication.stock <= 0) return; // plus de stock, pas d'alarme
 
   final now = DateTime.now();
   DateTime alarmTime = DateTime(
-    now.year,
-    now.month,
-    now.day,
-    time.hour,
-    time.minute,
+    now.year, now.month, now.day,
+    time.hour, time.minute,
   );
-
   if (alarmTime.isBefore(now)) {
     alarmTime = alarmTime.add(const Duration(days: 1));
   }
@@ -209,8 +219,8 @@ class NotificationService {
 
   await _plugin.zonedSchedule(
     _medId(medication.id, timeIndex),
-    '💊 Prise de médicament',
-    '${medication.medicationName} ${medication.dosage}',
+    '💊 ${medication.medicationName} ${medication.dosage}',
+    'Heure de prendre votre médicament',
     tzTime,
     NotificationDetails(
       android: AndroidNotificationDetails(
@@ -226,16 +236,7 @@ class NotificationService {
         fullScreenIntent: true,
         category: AndroidNotificationCategory.alarm,
         autoCancel: true,
-        actions: const [
-          AndroidNotificationAction(
-            'taken', 'Pris ✓',
-            cancelNotification: true,
-          ),
-          AndroidNotificationAction(
-            'snooze', 'Snooze 10 min',
-            cancelNotification: true,
-          ),
-        ],
+        // Plus de bouton action — la prise se fait dans l'app
       ),
       iOS: const DarwinNotificationDetails(
         presentAlert: true,
@@ -243,20 +244,13 @@ class NotificationService {
         interruptionLevel: InterruptionLevel.timeSensitive,
       ),
     ),
-    androidScheduleMode: AndroidScheduleMode.alarmClock,
+    androidScheduleMode: AndroidScheduleMode.alarmClock, // même que rappel simple
     uiLocalNotificationDateInterpretation:
         UILocalNotificationDateInterpretation.absoluteTime,
-
-    matchDateTimeComponents: DateTimeComponents.time,
-    payload:
-        'medication|${medication.id}|${medication.medicationName}|${medication.dosage}',
+    matchDateTimeComponents: DateTimeComponents.time, // répète chaque jour
+    payload: 'medication|${medication.id}|${medication.medicationName}|${medication.dosage}',
   );
-
-  debugPrint(
-      '✅ Médicament schedulé: ${medication.medicationName} à ${time.hour}:${time.minute.toString().padLeft(2, '0')} — prochaine alarme: $alarmTime');
 }
-
-
   // ════════════════════════════════════════════════════════════
   // ─── Rappel simple ───
   // ════════════════════════════════════════════════════════════
@@ -464,7 +458,7 @@ class NotificationService {
 // ════════════════════════════════════════════════════════════
 // ─── Helpers payload ───
 // ════════════════════════════════════════════════════════════
-NotificationModel? _payloadToNotificationModel(String payload) {
+NotificationModel? payloadToNotificationModel(String payload) {
   final p = payload.split('|');
   if (p.isEmpty) return null;
   final now = DateTime.now();

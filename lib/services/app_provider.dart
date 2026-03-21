@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:lamesse_dama_mobile/data/repositories/intake_repository.dart';
 import 'package:lamesse_dama_mobile/features/auth/presentation/pages/login_page.dart';
 import 'package:lamesse_dama_mobile/services/auth_service.dart';
+import 'package:uuid/uuid.dart';
 import '../data/models/models.dart';
 import '../data/mock/mock_data.dart';
 import '../core/constants/app_constants.dart';
@@ -34,7 +38,8 @@ class AppProvider extends ChangeNotifier {
   final _adviceRepo       = AdviceRepository();
   final _tokenStorage     = TokenStorage();
   final _notif            = NotificationService();
-  final _localStorage     = LocalStorage(); // ← NOUVEAU
+  final _localStorage     = LocalStorage(); 
+  final _intakeRepo       = IntakeRepository();
 
   // ════════════════════════════════════════════════════════════
   // ─── Theme ───
@@ -167,6 +172,7 @@ class AppProvider extends ChangeNotifier {
 
     // ── Programmer toutes les alarmes ──
     await _scheduleAll();
+    _startNotificationChecker();
 
     notifyListeners();
   }
@@ -447,7 +453,13 @@ class AppProvider extends ChangeNotifier {
 
   List<ScreeningReminder>  get screeningReminders  => _screeningReminders;
   List<MedicationReminder> get medicationReminders => _medicationReminders;
-  List<SimpleReminder>     get simpleReminders     => _simpleReminders;
+  List<SimpleReminder> get simpleReminders => _simpleReminders
+    ..sort((a, b) {
+      final aTime = DateTime(a.date.year, a.date.month, a.date.day, a.time.hour, a.time.minute);
+      final bTime = DateTime(b.date.year, b.date.month, b.date.day, b.time.hour, b.time.minute);
+      return bTime.compareTo(aTime); 
+  });
+
 
   List<ScreeningReminder> get overdueScreening => _screeningReminders
       .where((r) => !r.isCompleted && r.dueDate.isBefore(DateTime.now()))
@@ -808,4 +820,125 @@ class AppProvider extends ChangeNotifier {
     _localStorage.saveNotifications(_notifications); // ← persisté
     notifyListeners();
   }
+
+
+  List<MedicationIntake> _medicationIntakes = [];
+List<MedicationIntake> get medicationIntakes => _medicationIntakes;
+
+// Charger les prises dans initWithUser / _loadFromLocal
+// Dans _loadFromLocal ajoute :
+// _medicationIntakes = await _localStorage.loadMedicationIntakes();
+
+Future<void> confirmMedicationIntake(MedicationReminder med) async {
+  if (med.stock <= 0) return;
+
+  final intake = MedicationIntake(
+    id: const Uuid().v4(),
+    medicationId: med.id,
+    medicationName: med.medicationName,
+    dosage: med.dosage,
+    takenAt: DateTime.now(),
+  );
+
+  // Décrémenter le stock
+  final updated = MedicationReminder(
+    id: med.id,
+    medicationName: med.medicationName,
+    dosage: med.dosage,
+    intakeTimes: med.intakeTimes,
+    stock: med.stock - 1,
+    renewalAlertThreshold: med.renewalAlertThreshold,
+    diseaseType: med.diseaseType,
+    prescriptionId: med.prescriptionId,
+  );
+
+  // Mettre à jour le médicament
+  await updateMedicationReminder(updated);
+
+  // Sauvegarder la prise
+  _medicationIntakes.insert(0, intake);
+  await _localStorage.saveMedicationIntakes(_medicationIntakes);
+
+  // Envoyer à l'API (pour notifier le médecin)
+  try {
+  await _intakeRepo.confirmIntake(intake);
+} catch (_) {}
+
+  notifyListeners();
+}
+
+// Vérifier si déjà pris aujourd'hui à cette heure
+bool isTakenToday(String medicationId, TimeOfDay time) {
+  final now = DateTime.now();
+  return _medicationIntakes.any((i) =>
+    i.medicationId == medicationId &&
+    i.takenAt.year == now.year &&
+    i.takenAt.month == now.month &&
+    i.takenAt.day == now.day &&
+    i.takenAt.hour == time.hour,
+  );
+}
+
+  Timer? _notifChecker;
+
+void _startNotificationChecker() {
+  _notifChecker?.cancel();
+  _notifChecker = Timer.periodic(const Duration(minutes: 1), (_) {
+    _checkTriggeredReminders();
+  });
+}
+
+
+@override
+void dispose() {
+  _notifChecker?.cancel();
+  super.dispose();
+}
+
+void _checkTriggeredReminders() {
+  final now = DateTime.now();
+
+  // Rappels simples
+  for (final r in _simpleReminders) {
+    if (r.isCompleted) continue;
+    final reminderTime = DateTime(
+      r.date.year, r.date.month, r.date.day,
+      r.time.hour, r.time.minute,
+    );
+    if (reminderTime.year == now.year &&
+        reminderTime.month == now.month &&
+        reminderTime.day == now.day &&
+        reminderTime.hour == now.hour &&
+        reminderTime.minute == now.minute) {
+      
+      // Ajouter à la page notifications
+      addNotification(NotificationModel(
+        id: '${r.id}_${now.millisecondsSinceEpoch}',
+        title: 'Rappel',
+        body: r.label,
+        type: NotificationType.generalInfo,
+        createdAt: now,
+      ));
+
+      // Marquer automatiquement comme fait
+      toggleSimpleReminder(r.id);
+    }
+  }
+
+  // Médicaments — inchangé
+  for (final med in _medicationReminders) {
+    if (!med.isActive || med.stock <= 0) continue;
+    for (final t in med.intakeTimes) {
+      if (t.hour == now.hour && t.minute == now.minute) {
+        addNotification(NotificationModel(
+          id: '${med.id}_${t.hour}_${t.minute}_${now.millisecondsSinceEpoch}',
+          title: 'Prise de médicament',
+          body: '${med.medicationName} ${med.dosage}',
+          type: NotificationType.medicationReminder,
+          createdAt: now,
+        ));
+      }
+    }
+  }
+}
 }

@@ -39,7 +39,7 @@
       const AdviceModel(
         id: 'a7', title: 'Contrôlez votre glycémie à jeun',
         content: 'Mesurez votre glycémie chaque matin à jeun. Une valeur normale est entre 0.70 et 1.00 g/L. Notez vos résultats et partagez-les avec votre médecin.',
-        category: 'prevention', diseaseType: 'diabetes', iconName: 'water_drop', color: Color(0xFF163344),
+        category: 'prevention', diseaseType: 'diabetes', iconName: 'water_drop', color: Color.fromARGB(255, 72, 134, 170),
       ),
       const AdviceModel(
         id: 'a8', title: 'Choisissez des glucides complexes',
@@ -64,7 +64,7 @@
       const AdviceModel(
         id: 'a12', title: 'Dormez 7 à 8 heures par nuit',
         content: 'Un sommeil insuffisant perturbe la régulation de la glycémie et augmente la tension artérielle. Établissez une routine de sommeil régulière pour votre santé.',
-        category: 'lifestyle', diseaseType: 'all', iconName: 'bedtime', color: Color(0xFF163344),
+        category: 'lifestyle', diseaseType: 'all', iconName: 'bedtime', color: Color.fromARGB(255, 128, 149, 160),
       ),
       const AdviceModel(
         id: 'a13', title: 'Buvez suffisamment d\'eau',

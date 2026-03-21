@@ -21,7 +21,7 @@ class SectionHeader extends StatelessWidget {
           GestureDetector(
             onTap: onAction,
             child: Text(actionLabel!, style: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.primary, fontWeight: FontWeight.w600,
+              color: (isDark ? const Color.fromARGB(255, 167, 163, 163) : AppColors.primary), fontWeight: FontWeight.w600,
             )),
           ),
       ],

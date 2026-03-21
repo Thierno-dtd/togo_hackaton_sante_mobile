@@ -332,7 +332,7 @@ class DashboardPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(advice.title, style: AppTextStyles.h4),
+                  Text(advice.title, style: AppTextStyles.h4.copyWith(color: (isDark ? AppColors.white : AppColors.primary ), fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
                   Text(
                     advice.content,
@@ -396,18 +396,18 @@ class DashboardPage extends StatelessWidget {
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
+                          color: AppColors.primaryLight,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.medication,
-                            color: AppColors.primary, size: 20),
+                        child:  Icon(Icons.medication,
+                            color: (isDark ? AppColors.textHint : AppColors.primary), size: 20),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(m.medicationName, style: AppTextStyles.h4),
+                            Text(m.medicationName, style: AppTextStyles.h4.copyWith(color: (isDark ? AppColors.white : AppColors.primary ), fontWeight: FontWeight.w600)),
                             Text(
                               '${m.dosage} • ${m.intakeTimes.map((t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}').join(', ')}',
                               style: AppTextStyles.bodySmall,
@@ -448,7 +448,7 @@ class DashboardPage extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(r.label, style: AppTextStyles.h4),
+                            Text(r.label, style: AppTextStyles.h4.copyWith(color: (isDark ? AppColors.white : AppColors.primary ), fontWeight: FontWeight.w600)),
                             Text(AppUtils.formatTime(r.time),
                                 style: AppTextStyles.bodySmall),
                           ],
@@ -512,7 +512,7 @@ class DashboardPage extends StatelessWidget {
                         children: [
                           Text(
                             event.title,
-                            style: AppTextStyles.h4,
+                            style: AppTextStyles.h4.copyWith(color: (isDark ? AppColors.white : AppColors.primary ), fontWeight: FontWeight.w600),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -582,7 +582,7 @@ class DashboardPage extends StatelessWidget {
         _QuickAction(
           icon: Icons.history,
           label: 'Historique',
-          color: AppColors.primary,
+          color: const Color.fromARGB(255, 46, 85, 122),
           onTap: () => _goToTab(context, 5),
         ),
       ],

@@ -12,10 +12,7 @@ import '../../../../shared/widgets/shared_widgets.dart';
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
-  // ── Numéros d'urgence Togo ──
-  static const String _samu = '8200';
-  static const String _pompiers = '118';
-  static const String _police = '117';
+  
 
   @override
   Widget build(BuildContext context) {
@@ -554,8 +551,8 @@ class SettingsPage extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Déconnexion', style: AppTextStyles.h4),
-        content: Text('Voulez-vous vraiment vous déconnecter ?',
+        title: const Text('Déconnexion', style: AppTextStyles.h4),
+        content: const Text('Voulez-vous vraiment vous déconnecter ?',
             style: AppTextStyles.body),
         actions: [
           TextButton(
@@ -1856,38 +1853,7 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
     );
   }
 
-  Widget _docItem(
-      {required IconData icon,
-      required String label,
-      required String description}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: AppColors.warning.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, size: 16, color: AppColors.warning),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: AppTextStyles.body.copyWith(
-                      fontWeight: FontWeight.w600)),
-              Text(description, style: AppTextStyles.bodySmall),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
+ 
   Widget _sectionLabel(String label, Color color) {
     return Row(
       children: [
@@ -1974,7 +1940,6 @@ class _LocationSheetState extends State<_LocationSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return _BottomSheetWrapper(
       title: 'Ma localisation à domicile',
       icon: Icons.location_on_outlined,

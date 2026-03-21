@@ -171,6 +171,11 @@ class _AppLockGateState extends State<_AppLockGate>
     _initNotificationListener();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationService.requestBatteryOptimizationExemption();
+
+    final provider = context.read<AppProvider>();
+    if (provider.appLockEnabled) {
+      setState(() => _isLocked = true);
+    }
     });
   }
 
@@ -189,6 +194,16 @@ class _AppLockGateState extends State<_AppLockGate>
     final payload = response.payload ?? '';
     final actionId = response.actionId ?? '';
 
+    if (payload.isNotEmpty) {
+    final model = payloadToNotificationModel(payload);
+    if (model != null) {
+      final ctx = AppProvider.navigatorKey.currentContext;
+      if (ctx != null) {
+        ctx.read<AppProvider>().addNotification(model);
+      }
+    }
+  }
+
     if (actionId == 'stop_alarm' || actionId == 'taken' || actionId == 'done') {
       AlarmService.stopAlarm();
       return;
@@ -198,6 +213,7 @@ class _AppLockGateState extends State<_AppLockGate>
 
     if (payload.isNotEmpty) _routeFromPayload(payload);
   }
+
 
   void _routeFromPayload(String payload) {
     final parts = payload.split('|');
@@ -229,8 +245,9 @@ class _AppLockGateState extends State<_AppLockGate>
 
   @override
 void didChangeAppLifecycleState(AppLifecycleState state) {
-  if (!mounted) return; // ← ajoute ça en premier
+  if (!mounted) return;
   final provider = context.read<AppProvider>();
+   if (!provider.appLockEnabled) return;
   if (state == AppLifecycleState.paused && provider.appLockEnabled) {
     setState(() => _isLocked = true);
   }
@@ -280,91 +297,145 @@ class _AppLockScreenState extends State<_AppLockScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
+      resizeToAvoidBottomInset: true,
+      backgroundColor:
+          isDark ? AppColors.darkBackground : AppColors.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.primary, Color(0xFF1e4060)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withOpacity(0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                32,
+                32,
+                32,
+                MediaQuery.of(context).viewInsets.bottom + 32,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // 🔷 ICON
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [AppColors.primary, Color(0xFF1e4060)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.monitor_heart_rounded,
+                        color: Colors.white,
+                        size: 40,
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // 🔷 TITRE
+                    Text(
+                      'Application verrouillée',
+                      style: AppTextStyles.h3.copyWith(
+                        color: isDark
+                            ? AppColors.darkText
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // 🔷 DESCRIPTION
+                    Text(
+                      'Entrez votre mot de passe pour continuer',
+                      style: AppTextStyles.bodySmall,
+                      textAlign: TextAlign.center,
+                    ),
+
+                    const SizedBox(height: 40),
+
+                    // 🔷 INPUT
+                    TextField(
+                      controller: _passwordCtrl,
+                      obscureText: _obscure,
+                      onSubmitted: (_) => _tryUnlock(),
+                      decoration: InputDecoration(
+                        hintText: 'Mot de passe',
+                        prefixIcon:
+                            const Icon(Icons.lock_outline, size: 20),
+                        suffixIcon: IconButton(
+                          onPressed: () =>
+                              setState(() => _obscure = !_obscure),
+                          icon: Icon(
+                            _obscure
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            size: 18,
+                          ),
+                        ),
+                        errorText: _error,
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // 🔷 BUTTON
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _tryUnlock,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        icon: const Icon(
+                          Icons.lock_open_outlined,
+                          size: 18,
+                        ),
+                        label: Text(
+                          'Déverrouiller',
+                          style: AppTextStyles.button
+                              .copyWith(color: Colors.white),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // 🔷 LOGOUT
+                    TextButton(
+                      onPressed: () =>
+                          context.read<AppProvider>().logout(),
+                      child: Text(
+                        'Se déconnecter',
+                        style: AppTextStyles.body.copyWith(
+                          color: AppColors.textHint,
+                        ),
+                      ),
                     ),
                   ],
                 ),
-                child: const Icon(Icons.monitor_heart_rounded,
-                    color: Colors.white, size: 40),
               ),
-              const SizedBox(height: 24),
-              Text('Application verrouillée',
-                  style: AppTextStyles.h3.copyWith(
-                      color: isDark
-                          ? AppColors.darkText
-                          : AppColors.textPrimary)),
-              const SizedBox(height: 8),
-              Text('Entrez votre mot de passe pour continuer',
-                  style: AppTextStyles.bodySmall,
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 40),
-              TextField(
-                controller: _passwordCtrl,
-                obscureText: _obscure,
-                onSubmitted: (_) => _tryUnlock(),
-                decoration: InputDecoration(
-                  hintText: 'Mot de passe',
-                  prefixIcon: const Icon(Icons.lock_outline, size: 20),
-                  suffixIcon: IconButton(
-                    onPressed: () => setState(() => _obscure = !_obscure),
-                    icon: Icon(
-                        _obscure
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                        size: 18),
-                  ),
-                  errorText: _error,
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _tryUnlock,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                  ),
-                  icon: const Icon(Icons.lock_open_outlined, size: 18),
-                  label: Text('Déverrouiller',
-                      style: AppTextStyles.button
-                          .copyWith(color: Colors.white)),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => context.read<AppProvider>().logout(),
-                child: Text('Se déconnecter',
-                    style: AppTextStyles.body
-                        .copyWith(color: AppColors.textHint)),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

@@ -267,7 +267,7 @@ class _SimpleReminderTab extends StatelessWidget {
             label: 'Ajouter un rappel',
             onPressed: () => _showAddSheet(context),
             icon: Icons.alarm_add,
-            color: AppColors.accent,
+            color: AppColors.primary,
           ),
         ),
       ],

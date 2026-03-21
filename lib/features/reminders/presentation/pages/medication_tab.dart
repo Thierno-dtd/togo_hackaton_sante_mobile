@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -95,7 +96,7 @@ class MedicationTab extends StatelessWidget {
           ),
           child: PrimaryButton(
             label: 'Ajouter une ordonnance',
-            color: AppColors.accent,
+            color: AppColors.primary,
             onPressed: () => _showAddPrescriptionSheet(context),
             icon: Icons.add,
           ),
@@ -165,15 +166,22 @@ class MedicationTab extends StatelessWidget {
                           fit: BoxFit.cover,
                         )
                       : prescription.imageUrl != null
-                          ? Image.network(
-                              prescription.imageUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                Icons.description,
-                                color: AppColors.textHint,
-                                size: 28,
-                              ),
-                            )
+                          ? CachedNetworkImage(
+                                imageUrl: prescription.imageUrl!,
+                                fit: BoxFit.cover,
+                                width: 56,
+                                height: 56,
+                                placeholder: (_, __) => const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                                errorWidget: (_, __, ___) => const Icon(
+                                  Icons.description,
+                                  color: AppColors.textHint,
+                                  size: 28,
+                                ),
+                              )
                           : const Icon(
                               Icons.description,
                               color: AppColors.textHint,
@@ -498,6 +506,8 @@ class MedicationTab extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 12),
+          _TakenButton(medication: medication),
         if (!isLast) ...[
           const SizedBox(height: 12),
           const AppDivider(),
@@ -615,6 +625,105 @@ class MedicationTab extends StatelessWidget {
             child: const Text('Supprimer'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TakenButton extends StatelessWidget {
+  final MedicationReminder medication;
+  const _TakenButton({required this.medication});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<AppProvider>();
+    
+    // Vérifier si déjà pris à la prochaine heure prévue
+    final now = TimeOfDay.now();
+    final nextTime = medication.intakeTimes.firstWhere(
+      (t) => t.hour > now.hour || 
+             (t.hour == now.hour && t.minute >= now.minute),
+      orElse: () => medication.intakeTimes.first,
+    );
+    final alreadyTaken = provider.isTakenToday(medication.id, nextTime);
+
+    if (medication.stock <= 0) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.error.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text('Stock épuisé',
+          style: AppTextStyles.caption.copyWith(color: AppColors.error)),
+      );
+    }
+
+    return GestureDetector(
+      onTap: alreadyTaken ? null : () async {
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Confirmation'),
+            content: Text(
+              'As-tu vraiment pris ${medication.medicationName} ?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Annuler'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Confirmer'),
+              ),
+            ],
+          ),
+        );
+
+        // Si l'utilisateur annule → ne rien faire
+        if (confirm != true) return;
+
+        // Sinon → enregistrer la prise
+        await provider.confirmMedicationIntake(medication);
+
+        AppUtils.showSnackBar(
+          context,
+          '✓ Prise de ${medication.medicationName} enregistrée',
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: alreadyTaken
+            ? AppColors.success.withOpacity(0.08)
+            : AppColors.accent.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: alreadyTaken
+              ? AppColors.success.withOpacity(0.3)
+              : AppColors.accent.withOpacity(0.3),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              alreadyTaken ? Icons.check_circle : Icons.medication_liquid,
+              size: 16,
+              color: alreadyTaken ? AppColors.success : AppColors.accent,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              alreadyTaken ? 'Pris ✓' : 'J\'ai pris ce médicament',
+              style: AppTextStyles.body.copyWith(
+                color: alreadyTaken ? AppColors.success : AppColors.accent,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

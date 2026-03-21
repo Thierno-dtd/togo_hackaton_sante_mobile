@@ -50,4 +50,7 @@ class ApiEndpoints {
   // ── Self Assessment ──
   static const String assessmentQuestions = '/assessment/questions';
   static const String assessmentSubmit    = '/assessment/submit';
+
+  // ── Medication Intakes ──
+  static String medicationIntakes(String id) => '/medications/$id/intakes';
 }

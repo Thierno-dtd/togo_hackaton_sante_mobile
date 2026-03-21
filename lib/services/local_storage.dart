@@ -356,4 +356,25 @@ class LocalStorage {
       if (notifications != null) saveNotifications(notifications),
     ]);
   }
+
+
+  static const _kIntakes = 'ld_medication_intakes';
+
+Future<void> saveMedicationIntakes(List<MedicationIntake> intakes) async {
+  final prefs = await SharedPreferences.getInstance();
+  final list = intakes.map((i) => i.toJson()).toList();
+  await prefs.setString(_kIntakes, jsonEncode(list));
+}
+
+Future<List<MedicationIntake>> loadMedicationIntakes() async {
+  final prefs = await SharedPreferences.getInstance();
+  final raw = prefs.getString(_kIntakes);
+  if (raw == null) return [];
+  try {
+    final list = jsonDecode(raw) as List;
+    return list.map((e) => MedicationIntake.fromJson(e)).toList();
+  } catch (_) {
+    return [];
+  }
+}
 }
