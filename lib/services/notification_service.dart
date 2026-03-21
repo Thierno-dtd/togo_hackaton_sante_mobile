@@ -189,60 +189,73 @@ class NotificationService {
   // ─── Médicament ───
   // ════════════════════════════════════════════════════════════
   Future<void> scheduleMedicationReminder(
-      MedicationReminder medication, TimeOfDay time) async {
-    await initialize();
+    MedicationReminder medication, TimeOfDay time, int timeIndex) async {
+  await initialize();
 
-    final idx = medication.intakeTimes.indexOf(time);
-    final tzTime = _nextTime(time);
+  final now = DateTime.now();
+  DateTime alarmTime = DateTime(
+    now.year,
+    now.month,
+    now.day,
+    time.hour,
+    time.minute,
+  );
 
-    await _plugin.zonedSchedule(
-      _medId(medication.id, idx),
-      '💊 Prise de médicament',
-      '${medication.medicationName} ${medication.dosage}',
-      tzTime,
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          _alarmMedChannel.id,
-          _alarmMedChannel.name,
-          importance: Importance.max,
-          priority: Priority.max,
-          icon: '@mipmap/ic_launcher',
-          color: const Color(0xFF163344),
-          playSound: true,
-          enableVibration: true,
-          vibrationPattern: Int64List.fromList([0, 500, 200, 500, 200, 500]),
-          fullScreenIntent: true,
-          category: AndroidNotificationCategory.alarm,
-          autoCancel: true,
-          actions: const [
-            AndroidNotificationAction(
-              'taken', 'Pris ✓',
-              cancelNotification: true,
-            ),
-            AndroidNotificationAction(
-              'snooze', 'Snooze 10 min',
-              cancelNotification: true,
-            ),
-          ],
-        ),
-        iOS: const DarwinNotificationDetails(
-          presentAlert: true,
-          presentSound: true,
-          interruptionLevel: InterruptionLevel.timeSensitive,
-        ),
-      ),
-      // ← alarmClock = garanti même en mode Doze
-      androidScheduleMode: AndroidScheduleMode.alarmClock,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-      payload:
-          'medication|${medication.id}|${medication.medicationName}|${medication.dosage}',
-    );
-
-    debugPrint(
-        '✅ Médicament schedulé: ${medication.medicationName} à ${time.hour}:${time.minute.toString().padLeft(2, '0')}');
+  if (alarmTime.isBefore(now)) {
+    alarmTime = alarmTime.add(const Duration(days: 1));
   }
+
+  final tzTime = tz.TZDateTime.from(alarmTime, tz.local);
+
+  await _plugin.zonedSchedule(
+    _medId(medication.id, timeIndex),
+    '💊 Prise de médicament',
+    '${medication.medicationName} ${medication.dosage}',
+    tzTime,
+    NotificationDetails(
+      android: AndroidNotificationDetails(
+        _alarmReminderChannel.id,
+        _alarmReminderChannel.name,
+        importance: Importance.max,
+        priority: Priority.max,
+        icon: '@mipmap/ic_launcher',
+        color: const Color(0xFF163344),
+        playSound: true,
+        enableVibration: true,
+        vibrationPattern: Int64List.fromList([0, 500, 200, 500, 200, 500]),
+        fullScreenIntent: true,
+        category: AndroidNotificationCategory.alarm,
+        autoCancel: true,
+        actions: const [
+          AndroidNotificationAction(
+            'taken', 'Pris ✓',
+            cancelNotification: true,
+          ),
+          AndroidNotificationAction(
+            'snooze', 'Snooze 10 min',
+            cancelNotification: true,
+          ),
+        ],
+      ),
+      iOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentSound: true,
+        interruptionLevel: InterruptionLevel.timeSensitive,
+      ),
+    ),
+    androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+    uiLocalNotificationDateInterpretation:
+        UILocalNotificationDateInterpretation.absoluteTime,
+
+    matchDateTimeComponents: DateTimeComponents.time,
+    payload:
+        'medication|${medication.id}|${medication.medicationName}|${medication.dosage}',
+  );
+
+  debugPrint(
+      '✅ Médicament schedulé: ${medication.medicationName} à ${time.hour}:${time.minute.toString().padLeft(2, '0')} — prochaine alarme: $alarmTime');
+}
+
 
   // ════════════════════════════════════════════════════════════
   // ─── Rappel simple ───
@@ -404,12 +417,11 @@ class NotificationService {
   // ─── Annulation ───
   // ════════════════════════════════════════════════════════════
   Future<void> cancelMedicationReminders(MedicationReminder med) async {
-    for (var i = 0; i < med.intakeTimes.length; i++) {
-      await _plugin.cancel(_medId(med.id, i));
-      await _plugin.cancel(_medId(med.id, i) + 500);
-    }
-    await _plugin.cancel(_renewId(med.id));
+  for (var i = 0; i < med.intakeTimes.length; i++) {
+    await _plugin.cancel(_medId(med.id, i));
   }
+  await _plugin.cancel(_renewId(med.id));
+}
 
   Future<void> cancelSimpleReminder(String id) async {
     await _plugin.cancel(_simpleId(id));
@@ -435,7 +447,7 @@ class NotificationService {
     return s;
   }
 
-  int _medId(String id, int i) => id.hashCode.abs() % 90000 + i;
+  int _medId(String id, int i) => (id.hashCode.abs() % 10000) * 10 + i;
   int _renewId(String id) => id.hashCode.abs() % 90000 + 1000;
   int _simpleId(String id) => id.hashCode.abs() % 90000 + 2000;
   int _screeningId(String id, int d) => id.hashCode.abs() % 90000 + 3000 + d;

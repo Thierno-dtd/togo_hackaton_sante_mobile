@@ -988,30 +988,7 @@ class _AddPrescriptionSheetState extends State<AddPrescriptionSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_message != null)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _isError ? AppColors.error : AppColors.success,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _isError ? Icons.error_outline : Icons.check_circle_outline,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _message!,
-                      style: AppTextStyles.body.copyWith(color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          
           
           // Référence
           _sectionLabel('Référence *', AppColors.primary),
@@ -1022,18 +999,6 @@ class _AddPrescriptionSheetState extends State<AddPrescriptionSheet> {
             decoration: const InputDecoration(
               hintText: 'Ex: ORD-2024-001',
               prefixIcon: Icon(Icons.tag, size: 20),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Médecin
-          _sectionLabel('Médecin *', AppColors.primary),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _doctorCtrl,
-            decoration: const InputDecoration(
-              hintText: 'Nom du médecin',
-              prefixIcon: Icon(Icons.person_outline, size: 20),
             ),
           ),
           const SizedBox(height: 16),
@@ -1069,6 +1034,18 @@ class _AddPrescriptionSheetState extends State<AddPrescriptionSheet> {
             },
           ),
               const SizedBox(height: 16),
+
+          // Médecin
+          _sectionLabel('Médecin *', AppColors.primary),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _doctorCtrl,
+            decoration: const InputDecoration(
+              hintText: 'Nom du médecin',
+              prefixIcon: Icon(Icons.person_outline, size: 20),
+            ),
+          ),
+          const SizedBox(height: 16),
 
           // Date
           _sectionLabel('Date de l\'ordonnance', AppColors.primary),
@@ -1204,17 +1181,42 @@ class _AddPrescriptionSheetState extends State<AddPrescriptionSheet> {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            'Optionnel — mais recommandé',
-                            style: AppTextStyles.bodySmall,
-                          ),
+                          //Text(
+                            //'Optionnel — mais recommandé',
+                            //style: AppTextStyles.bodySmall,
+                          //),
                         ],
                       ),
               ),
             ),
           ],
+          const SizedBox(height: 12),
+          if (_message != null)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _isError ? AppColors.error : AppColors.success,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isError ? Icons.error_outline : Icons.check_circle_outline,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _message!,
+                      style: AppTextStyles.body.copyWith(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: 15),
           PrimaryButton(
             label: ' Ajouter les médicaments',
             onPressed: _savePrescription,

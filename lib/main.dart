@@ -1,20 +1,22 @@
+import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:lamesse_dama_mobile/features/events/presentation/pages/events_page.dart';
-import 'package:lamesse_dama_mobile/features/followup/presentation/pages/followup_page.dart';
-import 'package:lamesse_dama_mobile/features/reminders/presentation/pages/reminders_page.dart';
-import 'package:lamesse_dama_mobile/services/notification_service.dart';
-import 'features/notifications/presentation/pages/notifications_page.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:flutter_background_service_android/flutter_background_service_android.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'services/app_provider.dart';
+import 'services/notification_service.dart';
+import 'services/alarm_service.dart';
 import 'features/auth/presentation/pages/login_page.dart';
 import 'features/settings/presentation/pages/settings_page.dart';
+import 'features/notifications/presentation/pages/notifications_page.dart';
+import 'features/reminders/presentation/pages/reminders_page.dart';
+import 'features/followup/presentation/pages/followup_page.dart';
+import 'features/events/presentation/pages/events_page.dart';
 import 'navigation/main_navigation.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'services/alarm_service.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
-import 'package:flutter/material.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +27,8 @@ void main() async {
     statusBarIconBrightness: Brightness.light,
   ));
 
+  await initializeService();
+
   runApp(
     ChangeNotifierProvider(
       create: (_) => AppProvider(),
@@ -33,29 +37,80 @@ void main() async {
   );
 }
 
+// ─── Canal pour la notification persistante du service ───
+const AndroidNotificationChannel _bgChannel = AndroidNotificationChannel(
+  'bg_service_channel',
+  'Service de rappels',
+  description: 'Maintient les rappels actifs en arrière-plan',
+  importance: Importance.low,
+);
+
 Future<void> initializeService() async {
+  // Créer le canal AVANT de démarrer le service
+  final plugin = FlutterLocalNotificationsPlugin();
+  await plugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(_bgChannel);
+
   final service = FlutterBackgroundService();
+
   await service.configure(
     iosConfiguration: IosConfiguration(
-      onBackground: onBackground,
       autoStart: true,
+      onForeground: onStart,
+      onBackground: onBackground,
     ),
     androidConfiguration: AndroidConfiguration(
       onStart: onStart,
       isForegroundMode: true,
+      autoStart: true,
+      autoStartOnBoot: true,
+      notificationChannelId: 'bg_service_channel', // ✅ même ID que le canal créé
+      initialNotificationTitle: 'Laméssé Dama',
+      initialNotificationContent: 'Rappels actifs',
+      foregroundServiceNotificationId: 888,
     ),
   );
-  service.startService();
+
+  await service.startService();
 }
 
-void onStart(ServiceInstance service) {
-  service.on('stop').listen((event) {
+@pragma('vm:entry-point')
+void onStart(ServiceInstance service) async {
+  // ✅ Obligatoire en premier dans l'isolate background
+  DartPluginRegistrant.ensureInitialized();
+
+  if (service is AndroidServiceInstance) {
+    service.on('setAsForeground').listen((_) {
+      service.setAsForegroundService();
+    });
+    service.on('setAsBackground').listen((_) {
+      service.setAsBackgroundService();
+    });
+  }
+
+  service.on('stop').listen((_) {
     service.stopSelf();
   });
-  service.invoke('update');
+
+  // Garder le service vivant + mettre à jour la notification
+  Timer.periodic(const Duration(minutes: 1), (timer) async {
+    if (service is AndroidServiceInstance) {
+      if (await service.isForegroundService()) {
+        final now = DateTime.now();
+        service.setForegroundNotificationInfo(
+          title: 'Laméssé Dama',
+          content:
+              'Rappels actifs — ${now.hour}:${now.minute.toString().padLeft(2, '0')}',
+        );
+      }
+    }
+  });
 }
 
+@pragma('vm:entry-point')
 bool onBackground(ServiceInstance service) {
+  DartPluginRegistrant.ensureInitialized();
   return true;
 }
 
@@ -115,7 +170,6 @@ class _AppLockGateState extends State<_AppLockGate>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initNotificationListener();
-    // Demander exemption batterie après le premier frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationService.requestBatteryOptimizationExemption();
     });
@@ -127,9 +181,7 @@ class _AppLockGateState extends State<_AppLockGate>
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
         iOS: DarwinInitializationSettings(),
       ),
-      onDidReceiveNotificationResponse: (response) {
-        _handleNotificationResponse(response);
-      },
+      onDidReceiveNotificationResponse: _handleNotificationResponse,
       onDidReceiveBackgroundNotificationResponse: onBackgroundNotification,
     );
   }
@@ -138,23 +190,14 @@ class _AppLockGateState extends State<_AppLockGate>
     final payload = response.payload ?? '';
     final actionId = response.actionId ?? '';
 
-    debugPrint('📲 Notification tappée: payload=$payload action=$actionId');
-
-    // Actions boutons
     if (actionId == 'stop_alarm' || actionId == 'taken' || actionId == 'done') {
       AlarmService.stopAlarm();
       return;
     }
 
-    if (actionId == 'snooze' || actionId == 'snooze_alarm') {
-      // Snooze géré ultérieurement
-      return;
-    }
+    if (actionId == 'snooze' || actionId == 'snooze_alarm') return;
 
-    // Tap sur la notification elle-même
-    if (payload.isNotEmpty) {
-      _routeFromPayload(payload);
-    }
+    if (payload.isNotEmpty) _routeFromPayload(payload);
   }
 
   void _routeFromPayload(String payload) {
@@ -175,8 +218,6 @@ class _AppLockGateState extends State<_AppLockGate>
         break;
       case 'renewal':
         MainNavigation.goToTab(4, subTabIndex: 1);
-        break;
-      default:
         break;
     }
   }
@@ -199,14 +240,12 @@ class _AppLockGateState extends State<_AppLockGate>
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
     if (_isLocked && provider.appLockEnabled) {
-      return _AppLockScreen(
-          onUnlock: () => setState(() => _isLocked = false));
+      return _AppLockScreen(onUnlock: () => setState(() => _isLocked = false));
     }
     return const MainNavigation();
   }
 }
 
-// ─── App Lock Screen ───
 class _AppLockScreen extends StatefulWidget {
   final VoidCallback onUnlock;
   const _AppLockScreen({required this.onUnlock});
@@ -242,8 +281,7 @@ class _AppLockScreenState extends State<_AppLockScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.darkBackground : AppColors.background,
+      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -272,19 +310,15 @@ class _AppLockScreenState extends State<_AppLockScreen> {
                     color: Colors.white, size: 40),
               ),
               const SizedBox(height: 24),
-              Text(
-                'Application verrouillée',
-                style: AppTextStyles.h3.copyWith(
-                    color: isDark
-                        ? AppColors.darkText
-                        : AppColors.textPrimary),
-              ),
+              Text('Application verrouillée',
+                  style: AppTextStyles.h3.copyWith(
+                      color: isDark
+                          ? AppColors.darkText
+                          : AppColors.textPrimary)),
               const SizedBox(height: 8),
-              Text(
-                'Entrez votre mot de passe pour continuer',
-                style: AppTextStyles.bodySmall,
-                textAlign: TextAlign.center,
-              ),
+              Text('Entrez votre mot de passe pour continuer',
+                  style: AppTextStyles.bodySmall,
+                  textAlign: TextAlign.center),
               const SizedBox(height: 40),
               TextField(
                 controller: _passwordCtrl,
@@ -294,8 +328,7 @@ class _AppLockScreenState extends State<_AppLockScreen> {
                   hintText: 'Mot de passe',
                   prefixIcon: const Icon(Icons.lock_outline, size: 20),
                   suffixIcon: IconButton(
-                    onPressed: () =>
-                        setState(() => _obscure = !_obscure),
+                    onPressed: () => setState(() => _obscure = !_obscure),
                     icon: Icon(
                         _obscure
                             ? Icons.visibility_outlined
@@ -318,21 +351,17 @@ class _AppLockScreenState extends State<_AppLockScreen> {
                         borderRadius: BorderRadius.circular(14)),
                   ),
                   icon: const Icon(Icons.lock_open_outlined, size: 18),
-                  label: Text(
-                    'Déverrouiller',
-                    style:
-                        AppTextStyles.button.copyWith(color: Colors.white),
-                  ),
+                  label: Text('Déverrouiller',
+                      style: AppTextStyles.button
+                          .copyWith(color: Colors.white)),
                 ),
               ),
               const SizedBox(height: 16),
               TextButton(
                 onPressed: () => context.read<AppProvider>().logout(),
-                child: Text(
-                  'Se déconnecter',
-                  style: AppTextStyles.body
-                      .copyWith(color: AppColors.textHint),
-                ),
+                child: Text('Se déconnecter',
+                    style: AppTextStyles.body
+                        .copyWith(color: AppColors.textHint)),
               ),
             ],
           ),

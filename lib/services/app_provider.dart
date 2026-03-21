@@ -413,8 +413,7 @@ class AppProvider extends ChangeNotifier {
   // ════════════════════════════════════════════════════════════
   Future<void> _scheduleMedicationAlarms(MedicationReminder med) async {
     for (var i = 0; i < med.intakeTimes.length; i++) {
-      // Utilise NotificationService avec alarmClock
-      await _notif.scheduleMedicationReminder(med, med.intakeTimes[i]);
+      await _notif.scheduleMedicationReminder(med, med.intakeTimes[i], i);
     }
     if (med.needsRenewal) await _notif.scheduleRenewalAlert(med);
   }
