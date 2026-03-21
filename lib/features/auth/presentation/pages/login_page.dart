@@ -54,6 +54,8 @@ class _LoginPageState extends State<LoginPage>
   }
 
   Future<void> _handleLogin() async {
+    FocusScope.of(context).unfocus();
+    
     if (_loginEmailCtrl.text.trim().isEmpty ||
           _loginPassCtrl.text.trim().isEmpty) {
         _showMessage('Veuillez remplir tous les champs', isError: true);
@@ -75,7 +77,8 @@ class _LoginPageState extends State<LoginPage>
 
     if (result.success && result.user != null) {
       _showMessage(result.message ?? 'Connexion réussie !', isError: false);
-      await Future.delayed(const Duration(milliseconds: 600));
+      await Future.delayed(const Duration(milliseconds: 700));
+      _showMessage( 'Chargement... !', isError: false);
       if (mounted) context.read<AppProvider>().initWithUser(result.user!);
     } else {
       _showMessage(result.message ?? 'Erreur de connexion', isError: true);

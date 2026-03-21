@@ -230,6 +230,7 @@ break;
 case NotificationType.missedMeasurement:
 
 if (context.read<AppProvider>().isPatient) {
+  if (!mounted) return;
 Navigator.pushAndRemoveUntil(
   context,
   MaterialPageRoute(

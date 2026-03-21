@@ -290,6 +290,7 @@ class MedicationReminder {
   }
 
   Map<String, dynamic> toJson() => {
+    'id': id, 
     'medication_name': medicationName,
     'dosage': dosage,
     'intake_times': intakeTimes

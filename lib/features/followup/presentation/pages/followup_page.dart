@@ -1267,6 +1267,7 @@ class _HypertensionMeasurementSheetState
     widget.outerContext
         .read<AppProvider>()
         .addHypertensionRecord(record);
+    if (!mounted) return; 
     AppUtils.showSnackBar(
         widget.outerContext, 'Mesure enregistrée avec succès !');
     Navigator.pop(context);
@@ -1732,6 +1733,7 @@ class _DiabetesMeasurementSheetState
     );
 
     widget.outerContext.read<AppProvider>().addDiabetesRecord(record);
+    if (!mounted) return;
     AppUtils.showSnackBar(
         widget.outerContext, 'Mesure enregistrée avec succès !');
     Navigator.pop(context);

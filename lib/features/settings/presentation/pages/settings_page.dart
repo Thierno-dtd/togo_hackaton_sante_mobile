@@ -566,8 +566,9 @@ class SettingsPage extends StatelessWidget {
           ),
           TextButton(
             onPressed: () {
-               
+              
                provider.logout();
+               
             },
             child: Text('Déconnexion',
                 style: AppTextStyles.body.copyWith(
@@ -1194,6 +1195,7 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
     );
     widget.provider.updateUser(updated);
     widget.provider.activatePatient(_disease);
+    if (!mounted) return;
     AppUtils.showSnackBar(ctx, 'Mode patient activé ! Bienvenue 🎉');
     Navigator.pop(context);
   }

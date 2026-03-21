@@ -860,6 +860,7 @@ class _AddPrescriptionSheetState extends State<AddPrescriptionSheet> {
       provider.addMedicationReminder(med);
     }
 
+    if (!mounted) return;
     AppUtils.showSnackBar(
       widget.outerContext,
       _medications.isEmpty
@@ -1493,6 +1494,7 @@ class _AddMedicationDialogState extends State<_AddMedicationDialog> {
           _hasRenewal ? (int.tryParse(_thresholdCtrl.text) ?? 7) : 0,
       intakeTimes: _times,
     ));
+    if (!mounted) return;
     Navigator.pop(context);
   }
 
@@ -1774,6 +1776,7 @@ class _AddMedicationSheetState extends State<AddMedicationSheet> {
     );
 
     widget.outerContext.read<AppProvider>().addMedicationReminder(med);
+    if (!mounted) return;
     AppUtils.showSnackBar(widget.outerContext, 'Médicament ajouté');
     Navigator.pop(context);
   }
@@ -2136,6 +2139,7 @@ class _MedicationDetailsSheetState extends State<MedicationDetailsSheet>
     );
 
     widget.outerContext.read<AppProvider>().updateMedicationReminder(updatedMed);
+    if (!mounted) return;
     AppUtils.showSnackBar(widget.outerContext, 'Médicament mis à jour');
     Navigator.pop(context);
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lamesse_dama_mobile/services/auth_service.dart';
 import '../data/models/models.dart';
 import '../data/mock/mock_data.dart';
 import '../core/constants/app_constants.dart';
@@ -13,6 +14,7 @@ import '../data/repositories/event_repository.dart';
 import '../data/repositories/advice_repository.dart';
 import 'notification_service.dart';
 import 'alarm_service.dart';
+import 'local_storage.dart'; // ← NOUVEAU
 
 enum LoadState { idle, loading, success, error }
 
@@ -22,28 +24,34 @@ class AppProvider extends ChangeNotifier {
       GlobalKey<NavigatorState>();
 
   // ── Repositories ──
-  final _authRepo        = AuthRepository();
-  final _userRepo        = UserRepository();
-  final _measureRepo     = MeasurementRepository();
-  final _reminderRepo    = ReminderRepository();
+  final _authRepo         = AuthRepository();
+  final _userRepo         = UserRepository();
+  final _measureRepo      = MeasurementRepository();
+  final _reminderRepo     = ReminderRepository();
   final _prescriptionRepo = PrescriptionRepository();
-  final _eventRepo       = EventRepository();
-  final _adviceRepo      = AdviceRepository();
-  final _tokenStorage    = TokenStorage();
-  final _notif           = NotificationService();
+  final _eventRepo        = EventRepository();
+  final _adviceRepo       = AdviceRepository();
+  final _tokenStorage     = TokenStorage();
+  final _notif            = NotificationService();
+  final _localStorage     = LocalStorage(); // ← NOUVEAU
 
   // ════════════════════════════════════════════════════════════
   // ─── Theme ───
   // ════════════════════════════════════════════════════════════
   ThemeMode _themeMode = ThemeMode.light;
   ThemeMode get themeMode => _themeMode;
-  void setThemeMode(ThemeMode mode) { _themeMode = mode; notifyListeners(); }
+
+  void setThemeMode(ThemeMode mode) {
+    _themeMode = mode;
+    _localStorage.saveThemeMode(mode); // ← persisté
+    notifyListeners();
+  }
 
   // ════════════════════════════════════════════════════════════
   // ─── Auth ───
   // ════════════════════════════════════════════════════════════
   UserModel? _currentUser;
-  bool _isLoggedIn    = false;
+  bool _isLoggedIn     = false;
   bool _appLockEnabled = false;
   String? _localPassword;
 
@@ -69,9 +77,31 @@ class AppProvider extends ChangeNotifier {
   String? get eventsError       => _eventsError;
 
   // ════════════════════════════════════════════════════════════
+  // ─── Initialisation au démarrage de l'app ───
+  // Charger le thème et le verrou AVANT même de savoir si connecté
+  // ════════════════════════════════════════════════════════════
+  Future<void> initAppSettings() async {
+    _themeMode = await _localStorage.loadThemeMode();
+    final lock = await _localStorage.loadAppLock();
+    _appLockEnabled = lock.enabled;
+    _localPassword  = lock.password;
+    notifyListeners();
+  }
+
+  // ════════════════════════════════════════════════════════════
   // ─── Auto-login au démarrage ───
   // ════════════════════════════════════════════════════════════
   Future<bool> checkAutoLogin() async {
+    // 1. Essayer depuis le stockage local d'abord (offline)
+    final savedUser = await _localStorage.loadUser();
+    if (savedUser != null) {
+      await initWithUser(savedUser, fromLocal: true);
+      // Tenter de rafraîchir depuis l'API en arrière-plan (silencieux)
+      _refreshFromApi();
+      return true;
+    }
+
+    // 2. Sinon essayer les tokens API
     final hasTokens = await _tokenStorage.hasValidTokens();
     if (!hasTokens) return false;
     final res = await _authRepo.getMe();
@@ -83,17 +113,29 @@ class AppProvider extends ChangeNotifier {
     return false;
   }
 
+  // Rafraîchissement silencieux depuis l'API (sans bloquer l'UI)
+  Future<void> _refreshFromApi() async {
+    try {
+      final hasTokens = await _tokenStorage.hasValidTokens();
+      if (!hasTokens) return;
+      final res = await _authRepo.getMe();
+      if (res.success && res.data != null) {
+        _currentUser = res.data!;
+        await _localStorage.saveUser(res.data!);
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
   // ════════════════════════════════════════════════════════════
   // ─── Init après login ───
   // ════════════════════════════════════════════════════════════
-  Future<void> initWithUser(UserModel user) async {
+  Future<void> initWithUser(UserModel user, {bool fromLocal = false}) async {
     _currentUser = user;
     _isLoggedIn  = true;
 
     // ── Initialiser les services ──
     await _notif.initialize();
-    //await AlarmService.initialize();
-
     await NotificationService.requestBatteryOptimizationExemption();
 
     // ── Brancher le callback foreground → page in-app ──
@@ -103,19 +145,120 @@ class AppProvider extends ChangeNotifier {
     final pending = await _notif.consumePendingNotifications();
     for (final n in pending) _notifications.insert(0, n);
 
-    // ── Charger toutes les données ──
-    await Future.wait([
-      _loadMeasurements(),
-      _loadReminders(),
-      _loadDailyAdvice(user.diseaseType ?? 'all'),
-      _loadEvents(),
-    ]);
-    _loadMockNotifications(); // notifications in-app mockées
+    // ── Charger les données ──
+    if (fromLocal) {
+      // Chargement local rapide (offline-first)
+      await _loadFromLocal(user);
+    } else {
+      // Chargement depuis l'API (avec fallback local puis mock)
+      await Future.wait([
+        _loadMeasurements(),
+        _loadReminders(),
+        _loadDailyAdvice(user.diseaseType ?? 'all'),
+        _loadEvents(),
+      ]);
+      // Sauvegarder ce qui vient de l'API en local
+      await _persistAll();
+    }
 
-    // ── Programmer toutes les alarmes + rappels ──
+    // Charger les notifs persistées
+    await _loadPersistedNotifications();
+
+    // ── Programmer toutes les alarmes ──
     await _scheduleAll();
 
     notifyListeners();
+  }
+
+  // ─── Chargement local (offline-first) ───
+  Future<void> _loadFromLocal(UserModel user) async {
+    _measurementsState = LoadState.loading;
+    _remindersState    = LoadState.loading;
+
+    final diseaseType = user.diseaseType ?? 'hypertension';
+
+    // Mesures
+    if (diseaseType == 'hypertension' || diseaseType == 'both') {
+      _hypertensionRecords = await _localStorage.loadHypertensionRecords();
+      if (_hypertensionRecords.isEmpty) {
+        _hypertensionRecords = MockData.hypertensionRecords(user.id);
+      }
+    }
+    if (diseaseType == 'diabetes' || diseaseType == 'both') {
+      _diabetesRecords = await _localStorage.loadDiabetesRecords();
+      if (_diabetesRecords.isEmpty) {
+        _diabetesRecords = MockData.diabetesRecords(user.id);
+      }
+    }
+
+    // Rappels
+    _screeningReminders = await _localStorage.loadScreeningReminders();
+    if (_screeningReminders.isEmpty) {
+      _screeningReminders = MockData.defaultScreeningReminders;
+    }
+
+    if (user.isPatient) {
+      _prescriptions = await _localStorage.loadPrescriptions();
+      if (_prescriptions.isEmpty) {
+        _prescriptions = MockData.mockPrescriptions;
+      }
+
+      _medicationReminders = await _localStorage.loadMedicationReminders();
+      if (_medicationReminders.isEmpty) {
+        _medicationReminders = MockData.defaultMedicationReminders;
+      }
+
+      _simpleReminders = await _localStorage.loadSimpleReminders();
+      if (_simpleReminders.isEmpty) {
+        _simpleReminders = MockData.defaultSimpleReminders;
+      }
+    }
+
+    // Événements : charger les IDs inscrits et les appliquer aux mock
+    _events = MockData.events;
+    final registeredIds = await _localStorage.loadRegisteredEventIds();
+    for (final e in _events) {
+      e.isRegistered = registeredIds.contains(e.id);
+    }
+
+    // Conseil du jour (mock)
+    _fallbackAdvice(user.diseaseType ?? 'all');
+
+    // Dernier bilan
+    _lastAssessmentResult = await _localStorage.loadAssessmentResult();
+
+    _measurementsState = LoadState.success;
+    _remindersState    = LoadState.success;
+    _eventsState       = LoadState.success;
+    _adviceState       = LoadState.success;
+
+    notifyListeners();
+  }
+
+  // ─── Charger les notifs persistées sans dupliquer les mock ───
+  Future<void> _loadPersistedNotifications() async {
+    final persisted = await _localStorage.loadNotifications();
+    if (persisted.isEmpty) {
+      // Première ouverture : charger les mock
+      _loadMockNotifications();
+    } else {
+      _notifications = persisted;
+    }
+    notifyListeners();
+  }
+
+  // ─── Persister toutes les données en local après chargement API ───
+  Future<void> _persistAll() async {
+    await _localStorage.saveAll(
+      user: _currentUser,
+      hypertensionRecords: _hypertensionRecords,
+      diabetesRecords: _diabetesRecords,
+      screeningReminders: _screeningReminders,
+      medicationReminders: _medicationReminders,
+      simpleReminders: _simpleReminders,
+      prescriptions: _prescriptions,
+      registeredEventIds: _events.where((e) => e.isRegistered).map((e) => e.id).toList(),
+    );
   }
 
   // ─── Login simple (sans API) ───
@@ -129,12 +272,22 @@ class AppProvider extends ChangeNotifier {
   // ─── Logout ───
   // ════════════════════════════════════════════════════════════
   Future<void> logout() async {
+  // Désactiver le callback de notifs AVANT tout
+  _notif.onNotificationReceived = null;
+
+  _resetState();
+  notifyListeners();
+
+  await Future.delayed(const Duration(milliseconds: 300));
+
+  // Vérifier que le navigator est encore valide
+  if (navigatorKey.currentState?.mounted == true) {
     navigatorKey.currentState?.popUntil((route) => route.isFirst);
-    try { await _authRepo.logout(); } catch (_) {}
-    await _notif.cancelAll();
-    _resetState();
-    notifyListeners();
   }
+
+  _authRepo.logout().catchError((_) {});
+  _notif.cancelAll();
+}
 
   void _resetState() {
     _currentUser         = null;
@@ -162,18 +315,22 @@ class AppProvider extends ChangeNotifier {
   // ════════════════════════════════════════════════════════════
   Future<void> updateUser(UserModel user) async {
     _currentUser = user;
+    await _localStorage.saveUser(user); 
+     AuthService().updateStoredUser(user); // ← mettre à jour le stockage global des utilisateurs
     notifyListeners();
     try { await _userRepo.updateProfile(user); } catch (_) {}
   }
 
   void updateUserSync(UserModel user) {
     _currentUser = user;
+    _localStorage.saveUser(user);
     notifyListeners();
   }
 
   Future<void> updateUserLocation(String gpsLocation) async {
     if (_currentUser == null) return;
     _currentUser = _currentUser!.copyWith(gpsLocation: gpsLocation);
+    await _localStorage.saveUser(_currentUser!); // ← persisté
     notifyListeners();
     try { await _userRepo.updateLocation(gpsLocation); } catch (_) {}
   }
@@ -181,6 +338,7 @@ class AppProvider extends ChangeNotifier {
   void setAppLock(bool enabled, {String? password}) {
     _appLockEnabled = enabled;
     if (password != null) _localPassword = password;
+    _localStorage.saveAppLock(enabled, password: password); // ← persisté
     notifyListeners();
   }
 
@@ -192,6 +350,8 @@ class AppProvider extends ChangeNotifier {
       healthStatus: AppConstants.patient,
       diseaseType: diseaseType,
     );
+    _localStorage.saveUser(_currentUser!);
+    AuthService().updateStoredUser(_currentUser!);
     notifyListeners();
   }
 
@@ -205,36 +365,43 @@ class AppProvider extends ChangeNotifier {
   List<DiabetesRecord>     get diabetesRecords     => _diabetesRecords;
 
   Future<void> _loadMeasurements() async {
-  if (_currentUser == null || !_currentUser!.isPatient) return;
-  _measurementsState = LoadState.loading;
+    if (_currentUser == null || !_currentUser!.isPatient) return;
+    _measurementsState = LoadState.loading;
 
-  final diseaseType = _currentUser!.diseaseType ?? 'hypertension';
-  final loadHta = diseaseType == 'hypertension' || diseaseType == 'both';
-  final loadDia = diseaseType == 'diabetes' || diseaseType == 'both';
+    final diseaseType = _currentUser!.diseaseType ?? 'hypertension';
+    final loadHta = diseaseType == 'hypertension' || diseaseType == 'both';
+    final loadDia = diseaseType == 'diabetes' || diseaseType == 'both';
 
-  if (loadHta) {
-    final res = await _measureRepo.getHypertensionRecords();
-    if (res.success && res.data != null) {
-      _hypertensionRecords = res.data!;
-    } else {
-      _hypertensionRecords = MockData.hypertensionRecords(_currentUser!.id);
-      _measurementsError = res.error?.message;
+    if (loadHta) {
+      final res = await _measureRepo.getHypertensionRecords();
+      if (res.success && res.data != null) {
+        _hypertensionRecords = res.data!;
+      } else {
+        // Fallback local, puis mock
+        _hypertensionRecords = await _localStorage.loadHypertensionRecords();
+        if (_hypertensionRecords.isEmpty) {
+          _hypertensionRecords = MockData.hypertensionRecords(_currentUser!.id);
+        }
+        _measurementsError = res.error?.message;
+      }
     }
+
+    if (loadDia) {
+      final res = await _measureRepo.getDiabetesRecords();
+      if (res.success && res.data != null) {
+        _diabetesRecords = res.data!;
+      } else {
+        _diabetesRecords = await _localStorage.loadDiabetesRecords();
+        if (_diabetesRecords.isEmpty) {
+          _diabetesRecords = MockData.diabetesRecords(_currentUser!.id);
+        }
+      }
+    }
+
+    _measurementsState = LoadState.success;
+    notifyListeners();
   }
 
-  if (loadDia) {
-    final res = await _measureRepo.getDiabetesRecords();
-    if (res.success && res.data != null) {
-      _diabetesRecords = res.data!;
-    } else {
-      _diabetesRecords = MockData.diabetesRecords(_currentUser!.id);
-    }
-  }
-
-  _measurementsState = LoadState.success;
-  notifyListeners();
-}
-  // Méthode mock conservée pour rétro-compatibilité
   void loadMockMeasurements() {
     if (_currentUser == null) return;
     _hypertensionRecords = MockData.hypertensionRecords(_currentUser!.id);
@@ -243,11 +410,13 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> addHypertensionRecord(HypertensionRecord record) async {
     _hypertensionRecords.insert(0, record);
+    await _localStorage.saveHypertensionRecords(_hypertensionRecords); // ← persisté
     notifyListeners();
     try {
       final res = await _measureRepo.addHypertensionRecord(record);
       if (res.success && res.data != null) {
         _hypertensionRecords[0] = res.data!;
+        await _localStorage.saveHypertensionRecords(_hypertensionRecords);
         notifyListeners();
       }
     } catch (_) {}
@@ -255,11 +424,13 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> addDiabetesRecord(DiabetesRecord record) async {
     _diabetesRecords.insert(0, record);
+    await _localStorage.saveDiabetesRecords(_diabetesRecords); // ← persisté
     notifyListeners();
     try {
       final res = await _measureRepo.addDiabetesRecord(record);
       if (res.success && res.data != null) {
         _diabetesRecords[0] = res.data!;
+        await _localStorage.saveDiabetesRecords(_diabetesRecords);
         notifyListeners();
       }
     } catch (_) {}
@@ -288,9 +459,14 @@ class AppProvider extends ChangeNotifier {
       final res = await _reminderRepo.getScreeningReminders();
       _screeningReminders = res.success && res.data != null
           ? res.data!
-          : MockData.defaultScreeningReminders;
+          : (await _localStorage.loadScreeningReminders()).isNotEmpty
+              ? await _localStorage.loadScreeningReminders()
+              : MockData.defaultScreeningReminders;
     } catch (_) {
-      _screeningReminders = MockData.defaultScreeningReminders;
+      _screeningReminders = await _localStorage.loadScreeningReminders();
+      if (_screeningReminders.isEmpty) {
+        _screeningReminders = MockData.defaultScreeningReminders;
+      }
     }
 
     if (isPatient) {
@@ -299,9 +475,12 @@ class AppProvider extends ChangeNotifier {
         final res = await _prescriptionRepo.getPrescriptions();
         _prescriptions = res.success && res.data != null
             ? res.data!
-            : MockData.mockPrescriptions;
+            : (await _localStorage.loadPrescriptions()).isNotEmpty
+                ? await _localStorage.loadPrescriptions()
+                : MockData.mockPrescriptions;
       } catch (_) {
-        _prescriptions = MockData.mockPrescriptions;
+        _prescriptions = await _localStorage.loadPrescriptions();
+        if (_prescriptions.isEmpty) _prescriptions = MockData.mockPrescriptions;
       }
 
       // Médicaments
@@ -309,9 +488,14 @@ class AppProvider extends ChangeNotifier {
         final res = await _reminderRepo.getMedicationReminders();
         _medicationReminders = res.success && res.data != null
             ? res.data!
-            : MockData.defaultMedicationReminders;
+            : (await _localStorage.loadMedicationReminders()).isNotEmpty
+                ? await _localStorage.loadMedicationReminders()
+                : MockData.defaultMedicationReminders;
       } catch (_) {
-        _medicationReminders = MockData.defaultMedicationReminders;
+        _medicationReminders = await _localStorage.loadMedicationReminders();
+        if (_medicationReminders.isEmpty) {
+          _medicationReminders = MockData.defaultMedicationReminders;
+        }
       }
 
       // Rappels simples
@@ -319,9 +503,14 @@ class AppProvider extends ChangeNotifier {
         final res = await _reminderRepo.getSimpleReminders();
         _simpleReminders = res.success && res.data != null
             ? res.data!
-            : MockData.defaultSimpleReminders;
+            : (await _localStorage.loadSimpleReminders()).isNotEmpty
+                ? await _localStorage.loadSimpleReminders()
+                : MockData.defaultSimpleReminders;
       } catch (_) {
-        _simpleReminders = MockData.defaultSimpleReminders;
+        _simpleReminders = await _localStorage.loadSimpleReminders();
+        if (_simpleReminders.isEmpty) {
+          _simpleReminders = MockData.defaultSimpleReminders;
+        }
       }
     }
 
@@ -329,7 +518,6 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Méthode mock conservée pour rétro-compatibilité
   void loadMockReminders() {
     _screeningReminders = MockData.defaultScreeningReminders;
     if (isPatient) {
@@ -345,6 +533,7 @@ class AppProvider extends ChangeNotifier {
     if (idx == -1) return;
     _screeningReminders[idx].isCompleted = !_screeningReminders[idx].isCompleted;
     if (_screeningReminders[idx].isCompleted) _notif.cancelScreeningReminder(id);
+    _localStorage.saveScreeningReminders(_screeningReminders); // ← persisté
     notifyListeners();
     try { _reminderRepo.toggleScreeningReminder(id, _screeningReminders[idx].isCompleted); } catch (_) {}
   }
@@ -352,8 +541,8 @@ class AppProvider extends ChangeNotifier {
   // ─── Medication ───
   Future<void> addMedicationReminder(MedicationReminder reminder) async {
     _medicationReminders.add(reminder);
+    await _localStorage.saveMedicationReminders(_medicationReminders); // ← persisté
     notifyListeners();
-    // Programmer rappel + alarme
     await _scheduleMedicationAlarms(reminder);
     try { await _reminderRepo.addMedicationReminder(reminder); } catch (_) {}
   }
@@ -363,6 +552,7 @@ class AppProvider extends ChangeNotifier {
     if (idx == -1) return;
     await _cancelMedicationAlarms(_medicationReminders[idx]);
     _medicationReminders[idx] = updated;
+    await _localStorage.saveMedicationReminders(_medicationReminders); // ← persisté
     notifyListeners();
     await _scheduleMedicationAlarms(updated);
     try { await _reminderRepo.updateMedicationReminder(updated); } catch (_) {}
@@ -373,26 +563,24 @@ class AppProvider extends ChangeNotifier {
     if (idx == -1) return;
     await _cancelMedicationAlarms(_medicationReminders[idx]);
     _medicationReminders.removeAt(idx);
+    await _localStorage.saveMedicationReminders(_medicationReminders); // ← persisté
     notifyListeners();
     try { await _reminderRepo.deleteMedicationReminder(id); } catch (_) {}
   }
 
   // ─── Simple ───
   Future<void> addSimpleReminder(SimpleReminder reminder) async {
-  _simpleReminders.add(reminder);
-
-  await _scheduleSimpleAlarm(reminder);
-
-  try {
-    await _reminderRepo.addSimpleReminder(reminder);
-  } catch (_) {}
-
-  notifyListeners(); // ✅ à la FIN
-}
+    _simpleReminders.add(reminder);
+    await _localStorage.saveSimpleReminders(_simpleReminders); // ← persisté
+    await _scheduleSimpleAlarm(reminder);
+    try { await _reminderRepo.addSimpleReminder(reminder); } catch (_) {}
+    notifyListeners();
+  }
 
   Future<void> deleteSimpleReminder(String id) async {
     await _cancelSimpleAlarm(id);
     _simpleReminders.removeWhere((r) => r.id == id);
+    await _localStorage.saveSimpleReminders(_simpleReminders); // ← persisté
     notifyListeners();
     try { await _reminderRepo.deleteSimpleReminder(id); } catch (_) {}
   }
@@ -402,14 +590,12 @@ class AppProvider extends ChangeNotifier {
     if (idx == -1) return;
     _simpleReminders[idx].isCompleted = !_simpleReminders[idx].isCompleted;
     if (_simpleReminders[idx].isCompleted) _cancelSimpleAlarm(id);
+    _localStorage.saveSimpleReminders(_simpleReminders); // ← persisté
     notifyListeners();
   }
 
   // ════════════════════════════════════════════════════════════
-  // ─── Logique alarme vs notification ───
-  //
-  // J-7, J-1     → notification silencieuse de rappel
-  // Le jour J    → notification + ALARME (son persistant)
+  // ─── Logique alarme / notification ───
   // ════════════════════════════════════════════════════════════
   Future<void> _scheduleMedicationAlarms(MedicationReminder med) async {
     for (var i = 0; i < med.intakeTimes.length; i++) {
@@ -443,7 +629,6 @@ class AppProvider extends ChangeNotifier {
     }
   }
 
-  // Alias rétro-compatible
   Future<void> scheduleAllReminders() => _scheduleAll();
 
   // ════════════════════════════════════════════════════════════
@@ -476,7 +661,6 @@ class AppProvider extends ChangeNotifier {
     _adviceState = LoadState.error;
   }
 
-  // Mock conservé
   void loadDailyAdvice(String diseaseType) => _fallbackAdvice(diseaseType);
 
   // ════════════════════════════════════════════════════════════
@@ -511,6 +695,10 @@ class AppProvider extends ChangeNotifier {
     if (idx == -1) return;
     final was = _events[idx].isRegistered;
     _events[idx].isRegistered = !was;
+    // Persistre les IDs inscrits
+    await _localStorage.saveRegisteredEventIds(
+      _events.where((e) => e.isRegistered).map((e) => e.id).toList(),
+    );
     notifyListeners();
     try {
       if (was) await _eventRepo.unregisterFromEvent(eventId);
@@ -540,6 +728,7 @@ class AppProvider extends ChangeNotifier {
 
   void addPrescription(Prescription prescription) {
     _prescriptions.insert(0, prescription);
+    _localStorage.savePrescriptions(_prescriptions); // ← persisté
     notifyListeners();
   }
 
@@ -548,6 +737,8 @@ class AppProvider extends ChangeNotifier {
     for (final med in meds) await _cancelMedicationAlarms(med);
     _prescriptions.removeWhere((p) => p.id == prescriptionId);
     _medicationReminders.removeWhere((m) => m.prescriptionId == prescriptionId);
+    await _localStorage.savePrescriptions(_prescriptions);           // ← persisté
+    await _localStorage.saveMedicationReminders(_medicationReminders); // ← persisté
     notifyListeners();
     try { await _prescriptionRepo.deletePrescription(prescriptionId); } catch (_) {}
   }
@@ -568,6 +759,7 @@ class AppProvider extends ChangeNotifier {
 
   void saveAssessmentResult(SelfAssessmentResult result) {
     _lastAssessmentResult = result;
+    _localStorage.saveAssessmentResult(result); // ← persisté
     notifyListeners();
   }
 
@@ -580,9 +772,9 @@ class AppProvider extends ChangeNotifier {
       _notifications.where((n) => !n.isRead).length;
 
   void _loadMockNotifications() {
-    // Insérer après les pending (déjà ajoutés dans initWithUser)
     final mock = MockData.generateMockNotifications();
     _notifications.addAll(mock);
+    _localStorage.saveNotifications(_notifications);
     notifyListeners();
   }
 
@@ -590,6 +782,7 @@ class AppProvider extends ChangeNotifier {
 
   void addNotification(NotificationModel notification) {
     _notifications.insert(0, notification);
+    _localStorage.saveNotifications(_notifications); // ← persisté
     notifyListeners();
   }
 
@@ -597,17 +790,20 @@ class AppProvider extends ChangeNotifier {
     final idx = _notifications.indexWhere((n) => n.id == id);
     if (idx != -1) {
       _notifications[idx] = _notifications[idx].copyWith(isRead: true);
+      _localStorage.saveNotifications(_notifications); // ← persisté
       notifyListeners();
     }
   }
 
   void deleteNotification(String id) {
     _notifications.removeWhere((n) => n.id == id);
+    _localStorage.saveNotifications(_notifications); // ← persisté
     notifyListeners();
   }
 
   void markAllAsRead() {
     _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
+    _localStorage.saveNotifications(_notifications); // ← persisté
     notifyListeners();
   }
 }

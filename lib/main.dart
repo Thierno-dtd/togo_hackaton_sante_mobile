@@ -28,10 +28,13 @@ void main() async {
   ));
 
   await initializeService();
+  
+  final provider = AppProvider();
+  await provider.initAppSettings();
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AppProvider(),
+    ChangeNotifierProvider.value(
+      value: provider,
       child: const LamesseDamaApp(),
     ),
   );
@@ -229,12 +232,13 @@ class _AppLockGateState extends State<_AppLockGate>
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    final provider = context.read<AppProvider>();
-    if (state == AppLifecycleState.paused && provider.appLockEnabled) {
-      setState(() => _isLocked = true);
-    }
+void didChangeAppLifecycleState(AppLifecycleState state) {
+  if (!mounted) return; // ← ajoute ça en premier
+  final provider = context.read<AppProvider>();
+  if (state == AppLifecycleState.paused && provider.appLockEnabled) {
+    setState(() => _isLocked = true);
   }
+}
 
   @override
   Widget build(BuildContext context) {
