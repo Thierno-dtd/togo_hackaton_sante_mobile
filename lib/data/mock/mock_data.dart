@@ -85,92 +85,77 @@
 
     // ─── Mock Events ───
     static final List<EventModel> events = [
-    // ── Événement avec texte uniquement ──
-    EventModel(
-      id: 'e1',
-      title: 'Journée sportive communautaire',
-      description:
-          'Une matinée de sport et de bien-être pour tous les habitants du quartier. '
-          'Activités : marche, aerobics, yoga, et jeux collectifs. Venez en famille !',
-      date: DateTime.now().add(const Duration(days: 3)),
-      time: const TimeOfDay(hour: 7, minute: 0),
-      location: 'Stade municipal de Cocody',
-      organizer: 'Mairie de Cocody',
-      category: 'sport',
-    ),
-  
-    // ── Événement avec image URL + texte ──
-    EventModel(
-      id: 'e2',
-      title: 'Dépistage gratuit hypertension & diabète',
-      description:
-          'Campagne de dépistage gratuite organisée par le CHU de Treichville. '
-          'Tests de glycémie, mesure de tension artérielle et consultations gratuites.',
-      imageUrl: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800',
-      date: DateTime.now().add(const Duration(days: 7)),
-      time: const TimeOfDay(hour: 8, minute: 30),
-      location: 'CHU de Treichville, Pavillon A',
-      organizer: 'CHU Treichville',
-      category: 'health',
-      maxParticipants: 200,
-    ),
-  
-    // ── Événement avec image URL seule (pas de description) ──
-    EventModel(
-      id: 'e3',
-      title: 'Campagne de nettoyage — Marchés propres',
-      imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800',
-      date: DateTime.now().add(const Duration(days: 5)),
-      time: const TimeOfDay(hour: 6, minute: 0),
-      location: 'Marché de Adjamé 220 logements',
-      organizer: 'ONG Environnement+',
-      category: 'cleaning',
-    ),
-  
-    // ── Événement texte uniquement ──
-    EventModel(
-      id: 'e4',
-      title: 'Conférence : Alimentation et maladies chroniques',
-      description:
-          'Une conférence pour comprendre le lien entre alimentation et maladies cardiovasculaires. '
-          'Avec Pr. Koffi Amoussou, cardiologue.',
-      date: DateTime.now().add(const Duration(days: 10)),
-      time: const TimeOfDay(hour: 15, minute: 0),
-      location: 'Salle des fêtes de Marcory',
-      organizer: 'Association Cœur Sain',
-      category: 'awareness',
-    ),
-  
-    // ── Événement avec image + texte ──
-    EventModel(
-      id: 'e5',
-      title: 'Marathon de la santé — 5km pour tous',
-      description:
-          'Course caritative dont les fonds financeront les soins de patients démunis. '
-          'Ouverte à tous niveaux. T-shirt et kit offerts.',
-      imageUrl: 'https://images.unsplash.com/photo-1452626038306-9aae5e071b51?w=800',
-      date: DateTime.now().add(const Duration(days: 14)),
-      time: const TimeOfDay(hour: 7, minute: 30),
-      location: 'Boulevard de la République, Plateau',
-      organizer: 'Fondation Santé CI',
-      category: 'sport',
-      maxParticipants: 500,
-    ),
-  
-    // ── Événement texte uniquement ──
-    EventModel(
-      id: 'e6',
-      title: 'Atelier cuisine santé pour diabétiques',
-      description:
-          'Apprenez à cuisiner des repas délicieux adaptés aux diabétiques. '
-          'Démonstration par une diététicienne et dégustation incluses.',
-      date: DateTime.now().add(const Duration(days: 6)),
-      time: const TimeOfDay(hour: 10, minute: 0),
-      location: 'Centre communautaire de Yopougon',
-      organizer: 'Association Diabète CI',
-      category: 'health',
-      ),
-    ];
+  EventModel(
+    id: 'e1',
+    title: 'Journée sportive — Stade de Kégué',
+    description: 'Une matinée de sport et de bien-être pour tous les habitants de Lomé. '
+        'Activités : marche, aérobic, yoga et jeux collectifs. Venez en famille !',
+    date: DateTime.now().add(const Duration(days: 3)),
+    time: const TimeOfDay(hour: 7, minute: 0),
+    location: 'Stade de Kégué, Lomé',
+    organizer: 'Mairie de Lomé',
+    category: 'sport',
+  ),
+  EventModel(
+    id: 'e2',
+    title: 'Dépistage gratuit HTA & Diabète',
+    description: 'Campagne de dépistage gratuite organisée par le CHU Sylvanus Olympio. '
+        'Tests de glycémie, mesure de tension artérielle et consultations gratuites.',
+    imageUrl: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800',
+    date: DateTime.now().add(const Duration(days: 7)),
+    time: const TimeOfDay(hour: 8, minute: 30),
+    location: 'CHU Sylvanus Olympio, Lomé',
+    organizer: 'CHU Sylvanus Olympio',
+    category: 'health',
+    maxParticipants: 200,
+  ),
+  EventModel(
+    id: 'e3',
+    title: 'Campagne de salubrité — Marché de Adawlato',
+    imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800',
+    date: DateTime.now().add(const Duration(days: 5)),
+    time: const TimeOfDay(hour: 6, minute: 0),
+    location: 'Marché de Adawlato, Lomé',
+    organizer: 'ONG Togo Propre',
+    category: 'cleaning',
+  ),
+  EventModel(
+    id: 'e4',
+    title: 'Conférence : Alimentation et maladies chroniques',
+    description: 'Une conférence sur le lien entre alimentation et maladies cardiovasculaires. '
+        'Avec le Pr. Komi Agbeko, cardiologue au CHU Sylvanus Olympio.',
+    date: DateTime.now().add(const Duration(days: 10)),
+    time: const TimeOfDay(hour: 15, minute: 0),
+    location: 'Salle de conférence CCIT, Lomé',
+    organizer: 'Association Cœur Sain Togo',
+    category: 'awareness',
+  ),
+  EventModel(
+    id: 'e5',
+    title: 'Marathon de la santé — 5km pour tous',
+    description: 'Course caritative dont les fonds financeront les soins de patients démunis au Togo. '
+        'Ouverte à tous niveaux. T-shirt et kit offerts.',
+    imageUrl: 'https://images.unsplash.com/photo-1452626038306-9aae5e071b51?w=800',
+    date: DateTime.now().add(const Duration(days: 14)),
+    time: const TimeOfDay(hour: 7, minute: 30),
+    location: 'Boulevard du 13 Janvier, Lomé',
+    organizer: 'Fondation Santé Togo',
+    category: 'sport',
+    maxParticipants: 500,
+  ),
+  EventModel(
+    id: 'e6',
+    title: 'Atelier cuisine santé pour diabétiques',
+    description: 'Apprenez à cuisiner des repas togolais adaptés aux diabétiques. '
+        'Démonstration par une diététicienne et dégustation incluses.',
+    date: DateTime.now().add(const Duration(days: 6)),
+    time: const TimeOfDay(hour: 10, minute: 0),
+    location: 'Centre communautaire de Bè, Lomé',
+    organizer: 'Association Diabète Togo',
+    category: 'health',
+  ),
+];
+    
     // ─── Mock Assessment Questions ───
     static final List<SelfAssessmentQuestion> assessmentQuestions = [
       SelfAssessmentQuestion(
@@ -290,16 +275,19 @@
     
     // ─── Mock Simple Reminders ───
     static List<SimpleReminder> defaultSimpleReminders = [
-      SimpleReminder(
-        id: 'sim1', label: 'Peser-moi ce matin',
-        date: DateTime.now(), time: const TimeOfDay(hour: 7, minute: 0),
-      ),
-      SimpleReminder(
-        id: 'sim2', label: 'Rendez-vous Dr. Kouassi',
-        date: DateTime.now().add(const Duration(days: 3)),
-        time: const TimeOfDay(hour: 10, minute: 30),
-      ),
-    ];
+  SimpleReminder(
+    id: 'sim1',
+    label: 'Peser-moi ce matin',
+    date: DateTime.now(),
+    time: const TimeOfDay(hour: 6, minute: 30),
+  ),
+  SimpleReminder(
+    id: 'sim2',
+    label: 'Rendez-vous Dr. Agbeko — CHU',
+    date: DateTime.now().add(const Duration(days: 3)),
+    time: const TimeOfDay(hour: 9, minute: 0),
+  ),
+];
 
     // ─── Mock Hypertension Records ───
     static List<HypertensionRecord> hypertensionRecords(String userId) => [
@@ -389,12 +377,12 @@
 
     // ─── Mock Hospitals ───
     static const List<Hospital> hospitals = [
-      Hospital(id: 'h1', name: 'Dokita Lafia', address: 'Agoè Zongo, Lomé', district: 'Agoè', phone: '+228 99 99 92 00'),
-      Hospital(id: 'h2', name: 'CHU de Tokoin', address: 'Bd de l\'Université de Lomé, Lomé', district: 'Lomé', phone: '+228 22 22 06 66'),
-      Hospital(id: 'h3', name: 'Polyclinique Internationale Sainte Anne-Marie', address: 'Lomé, Lomé', district: 'Lomé', phone: '+228 97 97 11 11'),
-      Hospital(id: 'h4', name: 'Hôpital Général de Logopé', address: 'Logopé, Lomé', district: 'Lomé', phone: '+228 93 47 11 11'),
-      Hospital(id: 'h5', name: 'Clinique du Plateau', address: 'Plateau, Lomé', district: 'Plateau', phone: '+228 91 10 10 40'),
-    ];
+        Hospital(id: 'h1', name: 'CHU Sylvanus Olympio', address: 'Bd du 13 Janvier, Lomé', district: 'Lomé', phone: '+228 22 21 25 01'),
+        Hospital(id: 'h2', name: 'Hôpital de Bè', address: 'Quartier Bè, Lomé', district: 'Bè', phone: '+228 22 21 43 61'),
+        Hospital(id: 'h3', name: 'Clinique Agoè', address: 'Agoè Zongo, Lomé', district: 'Agoè', phone: '+228 99 99 92 00'),
+        Hospital(id: 'h4', name: 'Polyclinique Sainte Anne-Marie', address: 'Quartier Tokoin, Lomé', district: 'Tokoin', phone: '+228 22 21 34 34'),
+        Hospital(id: 'h5', name: 'Hôpital Régional de Kara', address: 'Kara Centre, Kara', district: 'Kara', phone: '+228 26 60 01 10'),
+        Hospital(id: 'h6', name: 'Hôpital Régional de Sokodé', address: 'Sokodé Centre, Sokodé', district: 'Sokodé', phone: '+228 25 60 01 20'),];
 
     // ─── Mock user ───
     static final UserModel mockUser = UserModel(
@@ -484,25 +472,24 @@
     }
 
     static List<Prescription> mockPrescriptions = [
-      Prescription(
-        id: 'rx1',
-        reference: 'ORD-2024-001',
-        imageLocalPath: null,
-        prescriptionDate: DateTime.now().subtract(const Duration(days: 15)),
-        doctorName: 'Dr. Kouassi',
-        hospital: 'CHU de Cocody',
-        createdAt: DateTime.now().subtract(const Duration(days: 15)),
-      ),
-
-      Prescription(
-        id: 'rx2',
-        reference: 'ORD-2024-002',
-        prescriptionDate: DateTime.now().subtract(const Duration(days: 7)),
-        doctorName: 'Dr. Amoussou',
-        hospital: 'CHU de Treichville',
-        createdAt: DateTime.now().subtract(const Duration(days: 7)),
-      ),
-    ];
+  Prescription(
+    id: 'rx1',
+    reference: 'ORD-2024-001',
+    imageLocalPath: null,
+    prescriptionDate: DateTime.now().subtract(const Duration(days: 15)),
+    doctorName: 'Dr. Agbeko',
+    hospital: 'CHU Sylvanus Olympio',
+    createdAt: DateTime.now().subtract(const Duration(days: 15)),
+  ),
+  Prescription(
+    id: 'rx2',
+    reference: 'ORD-2024-002',
+    prescriptionDate: DateTime.now().subtract(const Duration(days: 7)),
+    doctorName: 'Dr. Amévor',
+    hospital: 'Hôpital de Bè',
+    createdAt: DateTime.now().subtract(const Duration(days: 7)),
+  ),
+];
       // Mettre à jour defaultMedicationReminders
     static List<MedicationReminder> defaultMedicationReminders = [
       MedicationReminder(
