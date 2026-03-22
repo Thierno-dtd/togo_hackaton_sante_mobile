@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
@@ -85,7 +86,16 @@ class NotificationService {
     if (_initialized) return;
 
     tz.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation('Africa/Lome'));
+    
+    final String localTimeZone = await FlutterTimezone.getLocalTimezone();
+    tz.setLocalLocation(tz.getLocation(localTimeZone));
+    
+    debugPrint('🕐 Fuseau détecté: $localTimeZone');
+    debugPrint('🕐 Heure locale TZ: ${tz.TZDateTime.now(tz.local)}');
+    debugPrint('🕐 Heure système  : ${DateTime.now()}');
+    
+    debugPrint('🕐 Fuseau horaire: ${DateTime.now().timeZoneName} / offset: ${DateTime.now().timeZoneOffset}');
+  
 
     // Intercepter toutes les notifications qui arrivent en foreground
     AndroidFlutterLocalNotificationsPlugin? androidPlugin = _plugin
@@ -246,7 +256,15 @@ Future<void> processPendingOnResume() => _processPendingPayloads();
     alarmTime = alarmTime.add(const Duration(days: 1));
   }
 
-  final tzTime = tz.TZDateTime.from(alarmTime, tz.local);
+  final tzTime = tz.TZDateTime(
+    tz.local,
+    alarmTime.year,
+    alarmTime.month,
+    alarmTime.day,
+    alarmTime.hour,
+    alarmTime.minute,
+    0,
+  );
 
   await _plugin.zonedSchedule(
     _medId(medication.id, timeIndex),
@@ -301,8 +319,22 @@ Future<void> processPendingOnResume() => _processPendingPayloads();
       return;
     }
 
-    final tzTime = tz.TZDateTime.from(alarmTime, tz.local);
+    final tzTime = tz.TZDateTime(
+    tz.local,
+    alarmTime.year,
+    alarmTime.month,
+    alarmTime.day,
+    alarmTime.hour,
+    alarmTime.minute,
+    0,
+  );
 
+
+debugPrint('⏰ Alarme planifiée:');
+debugPrint('   DateTime local    : $alarmTime');
+debugPrint('   TZDateTime        : $tzTime');
+debugPrint('   Maintenant TZ     : ${tz.TZDateTime.now(tz.local)}');
+debugPrint('   Différence (min)  : ${tzTime.difference(tz.TZDateTime.now(tz.local)).inMinutes}');
     await _plugin.zonedSchedule(
       _simpleId(reminder.id),
       '🔔 Rappel',

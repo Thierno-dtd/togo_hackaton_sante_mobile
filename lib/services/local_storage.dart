@@ -377,4 +377,57 @@ Future<List<MedicationIntake>> loadMedicationIntakes() async {
     return [];
   }
 }
+
+static const _scheduledNotifsKey = 'scheduled_notifications';
+
+Future<void> saveScheduledNotification(NotificationModel notif) async {
+  final prefs = await SharedPreferences.getInstance();
+  final raw = prefs.getString(_scheduledNotifsKey);
+  final list = raw != null
+      ? List<Map<String, dynamic>>.from(jsonDecode(raw))
+      : <Map<String, dynamic>>[];
+  
+  // Éviter les doublons par id
+  list.removeWhere((m) => m['id'] == notif.id);
+  list.add({
+    'id': notif.id,
+    'title': notif.title,
+    'body': notif.body,
+    'type': notif.type.index,
+    'scheduledFor': notif.createdAt.toIso8601String(),
+  });
+  await prefs.setString(_scheduledNotifsKey, jsonEncode(list));
+}
+
+Future<List<NotificationModel>> consumeTriggeredScheduledNotifications() async {
+  final prefs = await SharedPreferences.getInstance();
+  final raw = prefs.getString(_scheduledNotifsKey);
+  if (raw == null) return [];
+
+  final now = DateTime.now();
+  final all = List<Map<String, dynamic>>.from(jsonDecode(raw));
+  
+  // Séparer celles qui ont été déclenchées (scheduledFor <= maintenant)
+  final triggered = all.where((m) {
+    final scheduledFor = DateTime.tryParse(m['scheduledFor'] ?? '');
+    return scheduledFor != null && scheduledFor.isBefore(now);
+  }).toList();
+  
+  // Garder uniquement les futures
+  final remaining = all.where((m) {
+    final scheduledFor = DateTime.tryParse(m['scheduledFor'] ?? '');
+    return scheduledFor != null && scheduledFor.isAfter(now);
+  }).toList();
+  
+  await prefs.setString(_scheduledNotifsKey, jsonEncode(remaining));
+  
+  return triggered.map((m) => NotificationModel(
+    id: '${m['id']}_triggered_${now.millisecondsSinceEpoch}',
+    title: m['title'] ?? '',
+    body: m['body'] ?? '',
+    type: NotificationType.values[m['type'] ?? 0],
+    createdAt: DateTime.tryParse(m['scheduledFor'] ?? '') ?? now,
+    isRead: false,
+  )).toList();
+}
 }

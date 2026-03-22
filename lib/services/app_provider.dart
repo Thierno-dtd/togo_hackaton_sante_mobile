@@ -147,9 +147,9 @@ class AppProvider extends ChangeNotifier {
     // ── Brancher le callback foreground → page in-app ──
     _notif.onNotificationReceived = (model) => addNotification(model);
 
-    // ── Récupérer les notifs reçues app fermée ──
-    final pending = await _notif.consumePendingNotifications();
-    for (final n in pending) _notifications.insert(0, n);
+    // ← NOUVEAU : récupérer les notifs programmées déclenchées
+final triggered = await _localStorage.consumeTriggeredScheduledNotifications();
+for (final n in triggered) _notifications.insert(0, n);
 
     // ── Charger les données ──
     if (fromLocal) {
@@ -179,13 +179,23 @@ class AppProvider extends ChangeNotifier {
   }
 
   // ── Consommer les notifs reçues en background au retour au premier plan ──
+// Appelé à chaque AppLifecycleState.resumed
 Future<void> consumePendingBackgroundNotifications() async {
+  // 1. Notifications pré-planifiées dont l'heure est passée
+  final triggered = await _localStorage.consumeTriggeredScheduledNotifications();
+  for (final n in triggered) addNotification(n);
+  
+  // 2. Double filet : callback Dart si disponible
   final pending = await _notif.consumePendingNotifications();
   for (final n in pending) {
-    addNotification(n);
+    // Éviter les doublons avec les triggered
+    if (!_notifications.any((existing) => 
+        existing.title == n.title && 
+        existing.body == n.body &&
+        existing.createdAt.difference(n.createdAt).inMinutes.abs() < 2)) {
+      addNotification(n);
+    }
   }
-  // Aussi via le channel natif
-  await _notif.processPendingOnResume();
 }
 
   // ─── Chargement local (offline-first) ───
@@ -624,15 +634,36 @@ Future<void> consumePendingBackgroundNotifications() async {
   // ─── Logique alarme / notification ───
   // ════════════════════════════════════════════════════════════
   Future<void> _scheduleMedicationAlarms(MedicationReminder med) async {
-    for (var i = 0; i < med.intakeTimes.length; i++) {
-      await _notif.scheduleMedicationReminder(med, med.intakeTimes[i], i);
-    }
-    if (med.needsRenewal) await _notif.scheduleRenewalAlert(med);
+  for (var i = 0; i < med.intakeTimes.length; i++) {
+    await _notif.scheduleMedicationReminder(med, med.intakeTimes[i], i);
+    
+    // ← NOUVEAU : pré-enregistrer la notification in-app
+    await _saveScheduledNotification(
+      id: '${med.id}_${med.intakeTimes[i].hour}_${med.intakeTimes[i].minute}',
+      title: 'Prise de médicament',
+      body: '${med.medicationName} ${med.dosage}',
+      type: NotificationType.medicationReminder,
+      scheduledFor: _nextAlarmDateTime(med.intakeTimes[i]),
+    );
   }
+  if (med.needsRenewal) await _notif.scheduleRenewalAlert(med);
+}
 
   Future<void> _scheduleSimpleAlarm(SimpleReminder reminder) async {
-    await _notif.scheduleSimpleReminder(reminder);
-  }
+  await _notif.scheduleSimpleReminder(reminder);
+  
+  // ← NOUVEAU : pré-enregistrer
+  await _saveScheduledNotification(
+    id: 'simple_${reminder.id}',
+    title: 'Rappel',
+    body: reminder.label,
+    type: NotificationType.generalInfo,
+    scheduledFor: DateTime(
+      reminder.date.year, reminder.date.month, reminder.date.day,
+      reminder.time.hour, reminder.time.minute,
+    ),
+  );
+}
 
   Future<void> _cancelMedicationAlarms(MedicationReminder med) async {
     await _notif.cancelMedicationReminders(med);
@@ -656,6 +687,31 @@ Future<void> consumePendingBackgroundNotifications() async {
   }
 
   Future<void> scheduleAllReminders() => _scheduleAll();
+
+  DateTime _nextAlarmDateTime(TimeOfDay time) {
+  final now = DateTime.now();
+  var dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+  if (dt.isBefore(now)) dt = dt.add(const Duration(days: 1));
+  return dt;
+}
+
+Future<void> _saveScheduledNotification({
+  required String id,
+  required String title,
+  required String body,
+  required NotificationType type,
+  required DateTime scheduledFor,
+}) async {
+  final notif = NotificationModel(
+    id: id,
+    title: title,
+    body: body,
+    type: type,
+    createdAt: scheduledFor,
+    isRead: false,
+  );
+  await _localStorage.saveScheduledNotification(notif);
+}
 
   // ════════════════════════════════════════════════════════════
   // ─── Advice ───
