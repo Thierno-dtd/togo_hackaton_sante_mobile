@@ -90,6 +90,7 @@ class _LoginPageState extends State<LoginPage>
 }
  
   Future<void> _handleRegister() async {
+    FocusScope.of(context).unfocus();
     if (_regFirstNameCtrl.text.trim().isEmpty ||
           _regLastNameCtrl.text.trim().isEmpty ||
           _regEmailCtrl.text.trim().isEmpty ||
@@ -455,7 +456,7 @@ class _LoginPageState extends State<LoginPage>
         const SizedBox(height: 24),
 
         PrimaryButton(
-          label: AppStrings.register,
+          label: _isLoading ? 'Connexion en cours...' : AppStrings.register,
           onPressed: _handleRegister,
           isLoading: _isLoading,
           icon: Icons.person_add_outlined,

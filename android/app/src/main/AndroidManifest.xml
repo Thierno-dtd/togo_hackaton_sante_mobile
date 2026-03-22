@@ -85,6 +85,15 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".BackgroundAlarmReceiver"
+            android:exported="false"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="BACKGROUND_ALARM"/>
+            </intent-filter>
+        </receiver>
+
         
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

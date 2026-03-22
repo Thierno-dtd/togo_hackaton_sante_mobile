@@ -12,8 +12,10 @@ import '../data/models/models.dart';
 import '../data/models/notification_model.dart';
 
 const _pendingNotifKey = 'pending_notifications';
-const _lifecycleChannel = MethodChannel('com.example.lamesse_dama_mobile/lifecycle');
-const _pendingPayloadsChannel = MethodChannel('com.example.lamesse_dama_mobile/pending_payloads');
+const _lifecycleChannel =
+    MethodChannel('com.example.lamesse_dama_mobile/lifecycle');
+const _pendingPayloadsChannel =
+    MethodChannel('com.example.lamesse_dama_mobile/pending_payloads');
 
 // ── Callback background — top-level obligatoire ──
 @pragma('vm:entry-point')
@@ -30,17 +32,16 @@ void onBackgroundNotification(NotificationResponse response) async {
   await prefs.setString(_pendingNotifKey, jsonEncode(list));
 }
 
-
-
 class NotificationService {
-  static final NotificationService _instance = NotificationService._internal();
+  static final NotificationService _instance =
+      NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
-  // Ajoute en haut de la classe
-  static final StreamController<NotificationModel> _notifStream =
-    StreamController<NotificationModel>.broadcast();
 
-  static Stream<NotificationModel> get notificationStream => _notifStream.stream;
+  static final StreamController<NotificationModel> _notifStream =
+      StreamController<NotificationModel>.broadcast();
+  static Stream<NotificationModel> get notificationStream =>
+      _notifStream.stream;
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -48,7 +49,11 @@ class NotificationService {
 
   void Function(NotificationModel)? onNotificationReceived;
 
-  // ── Channels ──
+  // ── Channel natif alarme ──
+  static const _alarmNativeChannel =
+      MethodChannel('com.example.lamesse_dama_mobile/alarm');
+
+  // ── Channels Android ──
   static const _alarmMedChannel = AndroidNotificationChannel(
     'alarm_medication_channel',
     'Alarmes médicaments',
@@ -86,26 +91,16 @@ class NotificationService {
     if (_initialized) return;
 
     tz.initializeTimeZones();
-    
+
     final String localTimeZone = await FlutterTimezone.getLocalTimezone();
     tz.setLocalLocation(tz.getLocation(localTimeZone));
-    
+
     debugPrint('🕐 Fuseau détecté: $localTimeZone');
     debugPrint('🕐 Heure locale TZ: ${tz.TZDateTime.now(tz.local)}');
     debugPrint('🕐 Heure système  : ${DateTime.now()}');
-    
-    debugPrint('🕐 Fuseau horaire: ${DateTime.now().timeZoneName} / offset: ${DateTime.now().timeZoneOffset}');
-  
 
-    // Intercepter toutes les notifications qui arrivent en foreground
-    AndroidFlutterLocalNotificationsPlugin? androidPlugin = _plugin
-      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-
-    // ── Paramètres Android ──
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    // ── Paramètres iOS ──
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -122,62 +117,30 @@ class NotificationService {
       onDidReceiveBackgroundNotificationResponse: onBackgroundNotification,
     );
 
-    // ── Créer les channels Android ──
     final ap = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
 
     await ap?.createNotificationChannel(_alarmMedChannel);
     await ap?.createNotificationChannel(_alarmReminderChannel);
     await ap?.createNotificationChannel(_notifChannel);
 
-    // ── Demander permissions ──
     final granted = await ap?.requestNotificationsPermission();
     debugPrint('🔔 Permission notifications: $granted');
 
     await ap?.requestExactAlarmsPermission();
 
+    // ── Écouter le retour au premier plan depuis background ──
     _lifecycleChannel.setMethodCallHandler((call) async {
-    if (call.method == 'onResume') {
-      await _processPendingPayloads();
-    }
-  });
+      if (call.method == 'onResume') {
+        await _processPendingPayloads();
+      }
+    });
 
     _initialized = true;
     debugPrint('✅ NotificationService initialisé');
   }
 
-  // ── Traiter les payloads reçus en background ──
-Future<void> _processPendingPayloads() async {
-  try {
-    final List<dynamic> payloads = await _pendingPayloadsChannel
-        .invokeMethod('getPendingPayloads');
-    for (final payload in payloads) {
-      final model = payloadToNotificationModel(payload as String);
-      if (model != null) {
-        onNotificationReceived?.call(model);
-      }
-    }
-  } catch (_) {}
-  
-  // Aussi consommer via SharedPreferences (double filet de sécurité)
-  final pending = await consumePendingNotifications();
-  for (final model in pending) {
-    onNotificationReceived?.call(model);
-  }
-}
-
-// Méthode publique à appeler depuis AppProvider au retour au premier plan
-Future<void> processPendingOnResume() => _processPendingPayloads();
-
-  // ── Handler foreground ──
-  void _onForeground(NotificationResponse response) {
-    debugPrint('📲 Notif foreground: ${response.payload}');
-    if (response.payload == null) return;
-    final model = payloadToNotificationModel(response.payload!);
-    if (model != null) onNotificationReceived?.call(model);
-  }
-
   // ════════════════════════════════════════════════════════════
-  // ─── Optimisation batterie ───
+  // ─── Permissions spéciales ───
   // ════════════════════════════════════════════════════════════
   static Future<void> requestBatteryOptimizationExemption() async {
     try {
@@ -190,6 +153,14 @@ Future<void> processPendingOnResume() => _processPendingPayloads();
     }
   }
 
+  static Future<void> requestAutoStartPermission() async {
+    try {
+      const platform =
+          MethodChannel('com.example.lamesse_dama_mobile/battery');
+      await platform.invokeMethod('openAutoStart');
+    } catch (_) {}
+  }
+
   static Future<void> openAutoStartSettings() async {
     try {
       const platform =
@@ -198,6 +169,38 @@ Future<void> processPendingOnResume() => _processPendingPayloads();
     } catch (e) {
       debugPrint('AutoStart error: $e');
     }
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // ─── Traitement des payloads background ───
+  // ════════════════════════════════════════════════════════════
+  Future<void> _processPendingPayloads() async {
+    // Filet 1 : payloads via channel natif (MainActivity)
+    try {
+      final List<dynamic> payloads =
+          await _pendingPayloadsChannel.invokeMethod('getPendingPayloads');
+      for (final payload in payloads) {
+        final model = payloadToNotificationModel(payload as String);
+        if (model != null) onNotificationReceived?.call(model);
+      }
+    } catch (_) {}
+
+    // Filet 2 : payloads via SharedPreferences
+    final pending = await consumePendingNotifications();
+    for (final model in pending) {
+      onNotificationReceived?.call(model);
+    }
+  }
+
+  // Méthode publique appelée depuis AppProvider au retour au premier plan
+  Future<void> processPendingOnResume() => _processPendingPayloads();
+
+  // ── Handler foreground ──
+  void _onForeground(NotificationResponse response) {
+    debugPrint('📲 Notif foreground: ${response.payload}');
+    if (response.payload == null) return;
+    final model = payloadToNotificationModel(response.payload!);
+    if (model != null) onNotificationReceived?.call(model);
   }
 
   // ════════════════════════════════════════════════════════════
@@ -214,6 +217,30 @@ Future<void> processPendingOnResume() => _processPendingPayloads();
           .toList();
     } catch (_) {
       return [];
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // ─── Alarme native background (AlarmManager Kotlin) ───
+  // ════════════════════════════════════════════════════════════
+  Future<void> _scheduleNativeBackgroundAlarm({
+    required String title,
+    required String body,
+    required DateTime scheduledFor,
+    required int notifId,
+    required int notifType,
+  }) async {
+    try {
+      await _alarmNativeChannel.invokeMethod('scheduleBackgroundAlarm', {
+        'title': title,
+        'body': body,
+        'triggerAtMillis': scheduledFor.millisecondsSinceEpoch,
+        'notifId': notifId,
+        'notifType': notifType,
+      });
+      debugPrint('✅ Alarme native background schedulée: $title à $scheduledFor');
+    } catch (e) {
+      debugPrint('❌ Erreur alarme native: $e');
     }
   }
 
@@ -242,64 +269,76 @@ Future<void> processPendingOnResume() => _processPendingPayloads();
   // ─── Médicament ───
   // ════════════════════════════════════════════════════════════
   Future<void> scheduleMedicationReminder(
-  MedicationReminder medication, TimeOfDay time, int timeIndex) async {
-  await initialize();
+      MedicationReminder medication, TimeOfDay time, int timeIndex) async {
+    await initialize();
+    if (medication.stock <= 0) return;
 
-  if (medication.stock <= 0) return;
+    final now = DateTime.now();
+    DateTime alarmTime = DateTime(
+        now.year, now.month, now.day, time.hour, time.minute);
+    if (alarmTime.isBefore(now)) {
+      alarmTime = alarmTime.add(const Duration(days: 1));
+    }
 
-  final now = DateTime.now();
-  DateTime alarmTime = DateTime(
-    now.year, now.month, now.day,
-    time.hour, time.minute,
-  );
-  if (alarmTime.isBefore(now)) {
-    alarmTime = alarmTime.add(const Duration(days: 1));
+    final tzTime = tz.TZDateTime(
+      tz.local,
+      alarmTime.year,
+      alarmTime.month,
+      alarmTime.day,
+      alarmTime.hour,
+      alarmTime.minute,
+      0,
+    );
+
+    debugPrint('⏰ Alarme planifiée:');
+    debugPrint('   DateTime local    : $alarmTime');
+    debugPrint('   TZDateTime        : $tzTime');
+    debugPrint('   Maintenant TZ     : ${tz.TZDateTime.now(tz.local)}');
+    debugPrint('   Différence (min)  : ${tzTime.difference(tz.TZDateTime.now(tz.local)).inMinutes}');
+
+    await _plugin.zonedSchedule(
+      _medId(medication.id, timeIndex),
+      '💊 ${medication.medicationName} ${medication.dosage}',
+      'Heure de prendre votre médicament',
+      tzTime,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _alarmReminderChannel.id,
+          _alarmReminderChannel.name,
+          importance: Importance.max,
+          priority: Priority.max,
+          icon: '@mipmap/ic_launcher',
+          color: const Color(0xFF163344),
+          playSound: true,
+          enableVibration: true,
+          vibrationPattern: Int64List.fromList([0, 500, 200, 500, 200, 500]),
+          fullScreenIntent: true,
+          category: AndroidNotificationCategory.alarm,
+          autoCancel: true,
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentSound: true,
+          interruptionLevel: InterruptionLevel.timeSensitive,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time,
+      payload:
+          'medication|${medication.id}|${medication.medicationName}|${medication.dosage}',
+    );
+
+    await _scheduleNativeBackgroundAlarm(
+      title: '💊 ${medication.medicationName} ${medication.dosage}',
+      body: 'Heure de prendre votre médicament',
+      scheduledFor: alarmTime,
+      notifId: _medId(medication.id, timeIndex),
+      notifType: 2, // NotificationType.medicationReminder.index
+    );
   }
 
-  final tzTime = tz.TZDateTime(
-    tz.local,
-    alarmTime.year,
-    alarmTime.month,
-    alarmTime.day,
-    alarmTime.hour,
-    alarmTime.minute,
-    0,
-  );
-
-  await _plugin.zonedSchedule(
-    _medId(medication.id, timeIndex),
-    '💊 ${medication.medicationName} ${medication.dosage}',
-    'Heure de prendre votre médicament',
-    tzTime,
-    NotificationDetails(
-      android: AndroidNotificationDetails(
-        _alarmReminderChannel.id,
-        _alarmReminderChannel.name,
-        importance: Importance.max,
-        priority: Priority.max,
-        icon: '@mipmap/ic_launcher',
-        color: const Color(0xFF163344),
-        playSound: true,
-        enableVibration: true,
-        vibrationPattern: Int64List.fromList([0, 500, 200, 500, 200, 500]),
-        fullScreenIntent: true,
-        category: AndroidNotificationCategory.alarm,
-        autoCancel: true,
-        // Plus de bouton action — la prise se fait dans l'app
-      ),
-      iOS: const DarwinNotificationDetails(
-        presentAlert: true,
-        presentSound: true,
-        interruptionLevel: InterruptionLevel.timeSensitive,
-      ),
-    ),
-    androidScheduleMode: AndroidScheduleMode.alarmClock, 
-    uiLocalNotificationDateInterpretation:
-        UILocalNotificationDateInterpretation.absoluteTime,
-    matchDateTimeComponents: DateTimeComponents.time, // répète chaque jour
-    payload: 'medication|${medication.id}|${medication.medicationName}|${medication.dosage}',
-  );
-}
   // ════════════════════════════════════════════════════════════
   // ─── Rappel simple ───
   // ════════════════════════════════════════════════════════════
@@ -320,21 +359,21 @@ Future<void> processPendingOnResume() => _processPendingPayloads();
     }
 
     final tzTime = tz.TZDateTime(
-    tz.local,
-    alarmTime.year,
-    alarmTime.month,
-    alarmTime.day,
-    alarmTime.hour,
-    alarmTime.minute,
-    0,
-  );
+      tz.local,
+      alarmTime.year,
+      alarmTime.month,
+      alarmTime.day,
+      alarmTime.hour,
+      alarmTime.minute,
+      0,
+    );
 
+    debugPrint('⏰ Alarme planifiée:');
+    debugPrint('   DateTime local    : $alarmTime');
+    debugPrint('   TZDateTime        : $tzTime');
+    debugPrint('   Maintenant TZ     : ${tz.TZDateTime.now(tz.local)}');
+    debugPrint('   Différence (min)  : ${tzTime.difference(tz.TZDateTime.now(tz.local)).inMinutes}');
 
-debugPrint('⏰ Alarme planifiée:');
-debugPrint('   DateTime local    : $alarmTime');
-debugPrint('   TZDateTime        : $tzTime');
-debugPrint('   Maintenant TZ     : ${tz.TZDateTime.now(tz.local)}');
-debugPrint('   Différence (min)  : ${tzTime.difference(tz.TZDateTime.now(tz.local)).inMinutes}');
     await _plugin.zonedSchedule(
       _simpleId(reminder.id),
       '🔔 Rappel',
@@ -371,6 +410,14 @@ debugPrint('   Différence (min)  : ${tzTime.difference(tz.TZDateTime.now(tz.loc
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       payload: 'simple|${reminder.id}|${reminder.label}',
+    );
+
+    await _scheduleNativeBackgroundAlarm(
+      title: '🔔 Rappel',
+      body: reminder.label,
+      scheduledFor: alarmTime,
+      notifId: _simpleId(reminder.id),
+      notifType: 0, // NotificationType.generalInfo.index
     );
 
     debugPrint('✅ Rappel simple schedulé: ${reminder.label} à $alarmTime');
@@ -433,85 +480,106 @@ debugPrint('   Différence (min)  : ${tzTime.difference(tz.TZDateTime.now(tz.loc
         payload: 'screening|${reminder.id}|${reminder.title}',
       );
 
-      debugPrint(
-          '✅ Dépistage schedulé: ${reminder.title} dans $offset jours');
+      // Alarme native background pour le dépistage
+      final nativeScheduledFor = DateTime(
+        reminder.dueDate.year,
+        reminder.dueDate.month,
+        reminder.dueDate.day,
+        9, 0,
+      ).subtract(Duration(days: offset));
+
+      await _scheduleNativeBackgroundAlarm(
+        title: '🏥 Dépistage — $label',
+        body: '${reminder.title} : ${reminder.description}',
+        scheduledFor: nativeScheduledFor,
+        notifId: _screeningId(reminder.id, offset),
+        notifType: 3, // NotificationType.screeningReminder.index
+      );
+
+      debugPrint('✅ Dépistage schedulé: ${reminder.title} dans $offset jours');
     }
   }
 
   // ════════════════════════════════════════════════════════════
   // ─── Renouvellement ───
   // ════════════════════════════════════════════════════════════
- Future<void> scheduleRenewalAlert(MedicationReminder med) async {
-  await initialize();
-  if (!med.needsRenewal) return;
+  Future<void> scheduleRenewalAlert(MedicationReminder med) async {
+    await initialize();
+    if (!med.needsRenewal) return;
 
-  // Vérifier si déjà montré aujourd'hui
-  final prefs = await SharedPreferences.getInstance();
-  final key = 'renewal_shown_${med.id}';
-  final lastShown = prefs.getString(key);
-  final today = DateTime.now().toIso8601String().split('T')[0];
-  if (lastShown == today) return; // déjà montré aujourd'hui
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'renewal_shown_${med.id}';
+    final lastShown = prefs.getString(key);
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    if (lastShown == today) return;
+    await prefs.setString(key, today);
 
-  await prefs.setString(key, today);
-
-  await _plugin.show(
-    _renewId(med.id),
-    '⚠️ Stock faible — ${med.medicationName}',
-    'Il reste ${med.stock} unité(s). Pensez à renouveler.',
-    NotificationDetails(
-      android: AndroidNotificationDetails(
-        _notifChannel.id,
-        _notifChannel.name,
-        importance: Importance.high,
-        priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
-        color: const Color(0xFFF59E0B),
-        playSound: true,
-        enableVibration: true,
-        autoCancel: true,
+    await _plugin.show(
+      _renewId(med.id),
+      '⚠️ Stock faible — ${med.medicationName}',
+      'Il reste ${med.stock} unité(s). Pensez à renouveler.',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _notifChannel.id,
+          _notifChannel.name,
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+          color: const Color(0xFFF59E0B),
+          playSound: true,
+          enableVibration: true,
+          autoCancel: true,
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentSound: true,
+        ),
       ),
-      iOS: const DarwinNotificationDetails(
-        presentAlert: true,
-        presentSound: true,
-      ),
-    ),
-    payload: 'renewal|${med.id}|${med.medicationName}',
-  );
-}
+      payload: 'renewal|${med.id}|${med.medicationName}',
+    );
+  }
+
   // ════════════════════════════════════════════════════════════
   // ─── Annulation ───
   // ════════════════════════════════════════════════════════════
   Future<void> cancelMedicationReminders(MedicationReminder med) async {
-  for (var i = 0; i < med.intakeTimes.length; i++) {
-    await _plugin.cancel(_medId(med.id, i));
+    for (var i = 0; i < med.intakeTimes.length; i++) {
+      await _plugin.cancel(_medId(med.id, i));
+      try {
+        await _alarmNativeChannel.invokeMethod('cancelBackgroundAlarm', {
+          'notifId': _medId(med.id, i),
+        });
+      } catch (_) {}
+    }
+    await _plugin.cancel(_renewId(med.id));
   }
-  await _plugin.cancel(_renewId(med.id));
-}
 
   Future<void> cancelSimpleReminder(String id) async {
     await _plugin.cancel(_simpleId(id));
     await _plugin.cancel(_simpleId(id) + 500);
+    try {
+      await _alarmNativeChannel.invokeMethod('cancelBackgroundAlarm', {
+        'notifId': _simpleId(id),
+      });
+    } catch (_) {}
   }
 
   Future<void> cancelScreeningReminder(String id) async {
     for (final d in [0, 1, 7]) {
       await _plugin.cancel(_screeningId(id, d));
+      try {
+        await _alarmNativeChannel.invokeMethod('cancelBackgroundAlarm', {
+          'notifId': _screeningId(id, d),
+        });
+      } catch (_) {}
     }
   }
 
   Future<void> cancelAll() async => await _plugin.cancelAll();
 
   // ════════════════════════════════════════════════════════════
-  // ─── Helpers ───
+  // ─── Helpers IDs ───
   // ════════════════════════════════════════════════════════════
-  tz.TZDateTime _nextTime(TimeOfDay t) {
-    final now = tz.TZDateTime.now(tz.local);
-    var s = tz.TZDateTime(
-        tz.local, now.year, now.month, now.day, t.hour, t.minute);
-    if (s.isBefore(now)) s = s.add(const Duration(days: 1));
-    return s;
-  }
-
   int _medId(String id, int i) => (id.hashCode.abs() % 10000) * 10 + i;
   int _renewId(String id) => id.hashCode.abs() % 90000 + 1000;
   int _simpleId(String id) => id.hashCode.abs() % 90000 + 2000;
@@ -582,12 +650,10 @@ Map<String, dynamic> _notifModelToMap(NotificationModel n) => {
       'createdAt': n.createdAt.toIso8601String(),
     };
 
-NotificationModel _mapToNotifModel(Map<String, dynamic> m) =>
-    NotificationModel(
+NotificationModel _mapToNotifModel(Map<String, dynamic> m) => NotificationModel(
       id: m['id'] ?? '',
       title: m['title'] ?? '',
       body: m['body'] ?? '',
       type: NotificationType.values[m['type'] ?? 0],
-      createdAt:
-          DateTime.tryParse(m['createdAt'] ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(m['createdAt'] ?? '') ?? DateTime.now(),
     );

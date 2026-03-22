@@ -19,7 +19,7 @@ import '../data/repositories/event_repository.dart';
 import '../data/repositories/advice_repository.dart';
 import 'notification_service.dart';
 import 'alarm_service.dart';
-import 'local_storage.dart'; // ← NOUVEAU
+import 'local_storage.dart';
 
 enum LoadState { idle, loading, success, error }
 
@@ -38,7 +38,7 @@ class AppProvider extends ChangeNotifier {
   final _adviceRepo       = AdviceRepository();
   final _tokenStorage     = TokenStorage();
   final _notif            = NotificationService();
-  final _localStorage     = LocalStorage(); 
+  final _localStorage     = LocalStorage();
   final _intakeRepo       = IntakeRepository();
 
   // ════════════════════════════════════════════════════════════
@@ -49,7 +49,7 @@ class AppProvider extends ChangeNotifier {
 
   void setThemeMode(ThemeMode mode) {
     _themeMode = mode;
-    _localStorage.saveThemeMode(mode); // ← persisté
+    _localStorage.saveThemeMode(mode);
     notifyListeners();
   }
 
@@ -83,8 +83,7 @@ class AppProvider extends ChangeNotifier {
   String? get eventsError       => _eventsError;
 
   // ════════════════════════════════════════════════════════════
-  // ─── Initialisation au démarrage de l'app ───
-  // Charger le thème et le verrou AVANT même de savoir si connecté
+  // ─── Initialisation au démarrage ───
   // ════════════════════════════════════════════════════════════
   Future<void> initAppSettings() async {
     _themeMode = await _localStorage.loadThemeMode();
@@ -98,7 +97,6 @@ class AppProvider extends ChangeNotifier {
   // ─── Auto-login au démarrage ───
   // ════════════════════════════════════════════════════════════
   Future<bool> checkAutoLogin() async {
-    // 1. Essayer depuis le stockage local d'abord (offline)
     final savedUser = await _localStorage.loadUser();
     if (savedUser != null) {
       await initWithUser(savedUser, fromLocal: true);
@@ -106,7 +104,6 @@ class AppProvider extends ChangeNotifier {
       return true;
     }
 
-    // 2. Sinon essayer les tokens API
     final hasTokens = await _tokenStorage.hasValidTokens();
     if (!hasTokens) return false;
     final res = await _authRepo.getMe();
@@ -118,7 +115,6 @@ class AppProvider extends ChangeNotifier {
     return false;
   }
 
-  // Rafraîchissement silencieux depuis l'API (sans bloquer l'UI)
   Future<void> _refreshFromApi() async {
     try {
       final hasTokens = await _tokenStorage.hasValidTokens();
@@ -147,23 +143,23 @@ class AppProvider extends ChangeNotifier {
     // ── Brancher le callback foreground → page in-app ──
     _notif.onNotificationReceived = (model) => addNotification(model);
 
-    // ← NOUVEAU : récupérer les notifs programmées déclenchées
-final triggered = await _localStorage.consumeTriggeredScheduledNotifications();
-for (final n in triggered) _notifications.insert(0, n);
+    // ── Récupérer les notifs reçues app fermée ou background ──
+    await _notif.processPendingOnResume();
+
+    // ── Notifs programmées dont l'heure est passée ──
+    final triggered = await _localStorage.consumeTriggeredScheduledNotifications();
+    for (final n in triggered) _notifications.insert(0, n);
 
     // ── Charger les données ──
     if (fromLocal) {
-      // Chargement local rapide (offline-first)
       await _loadFromLocal(user);
     } else {
-      // Chargement depuis l'API (avec fallback local puis mock)
       await Future.wait([
         _loadMeasurements(),
         _loadReminders(),
         _loadDailyAdvice(user.diseaseType ?? 'all'),
         _loadEvents(),
       ]);
-      // Sauvegarder ce qui vient de l'API en local
       await _persistAll();
       _medicationIntakes = await _localStorage.loadMedicationIntakes();
     }
@@ -174,29 +170,20 @@ for (final n in triggered) _notifications.insert(0, n);
     // ── Programmer toutes les alarmes ──
     await _scheduleAll();
     _startNotificationChecker();
-
     notifyListeners();
   }
 
-  // ── Consommer les notifs reçues en background au retour au premier plan ──
-// Appelé à chaque AppLifecycleState.resumed
-Future<void> consumePendingBackgroundNotifications() async {
-  // 1. Notifications pré-planifiées dont l'heure est passée
-  final triggered = await _localStorage.consumeTriggeredScheduledNotifications();
-  for (final n in triggered) addNotification(n);
-  
-  // 2. Double filet : callback Dart si disponible
-  final pending = await _notif.consumePendingNotifications();
-  for (final n in pending) {
-    // Éviter les doublons avec les triggered
-    if (!_notifications.any((existing) => 
-        existing.title == n.title && 
-        existing.body == n.body &&
-        existing.createdAt.difference(n.createdAt).inMinutes.abs() < 2)) {
-      addNotification(n);
-    }
+  // ════════════════════════════════════════════════════════════
+  // ─── Retour au premier plan (appelé depuis main.dart) ───
+  // ════════════════════════════════════════════════════════════
+  Future<void> consumePendingBackgroundNotifications() async {
+    // 1. Notifs pré-planifiées dont l'heure est passée
+    final triggered = await _localStorage.consumeTriggeredScheduledNotifications();
+    for (final n in triggered) addNotification(n);
+
+    // 2. Double filet : SharedPrefs + channel natif
+    await _notif.processPendingOnResume();
   }
-}
 
   // ─── Chargement local (offline-first) ───
   Future<void> _loadFromLocal(UserModel user) async {
@@ -205,7 +192,6 @@ Future<void> consumePendingBackgroundNotifications() async {
 
     final diseaseType = user.diseaseType ?? 'hypertension';
 
-    // Mesures
     if (diseaseType == 'hypertension' || diseaseType == 'both') {
       _hypertensionRecords = await _localStorage.loadHypertensionRecords();
       if (_hypertensionRecords.isEmpty) {
@@ -219,7 +205,6 @@ Future<void> consumePendingBackgroundNotifications() async {
       }
     }
 
-    // Rappels
     _screeningReminders = await _localStorage.loadScreeningReminders();
     if (_screeningReminders.isEmpty) {
       _screeningReminders = MockData.defaultScreeningReminders;
@@ -237,23 +222,20 @@ Future<void> consumePendingBackgroundNotifications() async {
       }
 
       _simpleReminders = await _localStorage.loadSimpleReminders();
-      _medicationIntakes = await _localStorage.loadMedicationIntakes();
       if (_simpleReminders.isEmpty) {
         _simpleReminders = MockData.defaultSimpleReminders;
       }
+
+      _medicationIntakes = await _localStorage.loadMedicationIntakes();
     }
 
-    // Événements : charger les IDs inscrits et les appliquer aux mock
     _events = MockData.events;
     final registeredIds = await _localStorage.loadRegisteredEventIds();
     for (final e in _events) {
       e.isRegistered = registeredIds.contains(e.id);
     }
 
-    // Conseil du jour (mock)
     _fallbackAdvice(user.diseaseType ?? 'all');
-
-    // Dernier bilan
     _lastAssessmentResult = await _localStorage.loadAssessmentResult();
 
     _measurementsState = LoadState.success;
@@ -264,11 +246,9 @@ Future<void> consumePendingBackgroundNotifications() async {
     notifyListeners();
   }
 
-  // ─── Charger les notifs persistées sans dupliquer les mock ───
   Future<void> _loadPersistedNotifications() async {
     final persisted = await _localStorage.loadNotifications();
     if (persisted.isEmpty) {
-      // Première ouverture : charger les mock
       _loadMockNotifications();
     } else {
       _notifications = persisted;
@@ -276,7 +256,6 @@ Future<void> consumePendingBackgroundNotifications() async {
     notifyListeners();
   }
 
-  // ─── Persister toutes les données en local après chargement API ───
   Future<void> _persistAll() async {
     await _localStorage.saveAll(
       user: _currentUser,
@@ -290,7 +269,6 @@ Future<void> consumePendingBackgroundNotifications() async {
     );
   }
 
-  // ─── Login simple (sans API) ───
   void login(UserModel user) {
     _currentUser = user;
     _isLoggedIn  = true;
@@ -301,43 +279,40 @@ Future<void> consumePendingBackgroundNotifications() async {
   // ─── Logout ───
   // ════════════════════════════════════════════════════════════
   Future<void> logout() async {
-  _notif.onNotificationReceived = null;
-  _notif.cancelAll();
-  _authRepo.logout().catchError((_) {});
+    _notif.onNotificationReceived = null;
+    _notif.cancelAll();
+    _authRepo.logout().catchError((_) {});
 
-  // Naviguer AVANT de toucher au state
-  navigatorKey.currentState?.pushAndRemoveUntil(
-    MaterialPageRoute(builder: (_) => const LoginPage()),
-    (route) => false,
-  );
+    navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => false,
+    );
 
-  // Attendre que Flutter détache tous les widgets
-  await Future.delayed(const Duration(milliseconds: 500));
-
-  // Seulement maintenant, reset et notify
-  _resetState();
-  notifyListeners();
-}
+    await Future.delayed(const Duration(milliseconds: 500));
+    _resetState();
+    notifyListeners();
+  }
 
   void _resetState() {
-    _currentUser         = null;
-    _isLoggedIn          = false;
-    _appLockEnabled      = false;
-    _localPassword       = null;
-    _hypertensionRecords = [];
-    _diabetesRecords     = [];
-    _screeningReminders  = [];
-    _medicationReminders = [];
-    _simpleReminders     = [];
-    _prescriptions       = [];
-    _dailyAdvice         = [];
-    _events              = [];
-    _notifications       = [];
+    _currentUser          = null;
+    _isLoggedIn           = false;
+    _appLockEnabled       = false;
+    _localPassword        = null;
+    _hypertensionRecords  = [];
+    _diabetesRecords      = [];
+    _screeningReminders   = [];
+    _medicationReminders  = [];
+    _simpleReminders      = [];
+    _prescriptions        = [];
+    _dailyAdvice          = [];
+    _events               = [];
+    _notifications        = [];
+    _medicationIntakes    = [];
     _lastAssessmentResult = null;
-    _measurementsState   = LoadState.idle;
-    _remindersState      = LoadState.idle;
-    _eventsState         = LoadState.idle;
-    _adviceState         = LoadState.idle;
+    _measurementsState    = LoadState.idle;
+    _remindersState       = LoadState.idle;
+    _eventsState          = LoadState.idle;
+    _adviceState          = LoadState.idle;
   }
 
   // ════════════════════════════════════════════════════════════
@@ -345,8 +320,8 @@ Future<void> consumePendingBackgroundNotifications() async {
   // ════════════════════════════════════════════════════════════
   Future<void> updateUser(UserModel user) async {
     _currentUser = user;
-    await _localStorage.saveUser(user); 
-     AuthService().updateStoredUser(user); // ← mettre à jour le stockage global des utilisateurs
+    await _localStorage.saveUser(user);
+    AuthService().updateStoredUser(user);
     notifyListeners();
     try { await _userRepo.updateProfile(user); } catch (_) {}
   }
@@ -360,7 +335,7 @@ Future<void> consumePendingBackgroundNotifications() async {
   Future<void> updateUserLocation(String gpsLocation) async {
     if (_currentUser == null) return;
     _currentUser = _currentUser!.copyWith(gpsLocation: gpsLocation);
-    await _localStorage.saveUser(_currentUser!); // ← persisté
+    await _localStorage.saveUser(_currentUser!);
     notifyListeners();
     try { await _userRepo.updateLocation(gpsLocation); } catch (_) {}
   }
@@ -368,22 +343,22 @@ Future<void> consumePendingBackgroundNotifications() async {
   void setAppLock(bool enabled, {String? password}) {
     _appLockEnabled = enabled;
     if (password != null) _localPassword = password;
-    _localStorage.saveAppLock(enabled, password: password); // ← persisté
+    _localStorage.saveAppLock(enabled, password: password);
     notifyListeners();
   }
 
   bool verifyPassword(String password) => _localPassword == password;
 
   Future<void> activatePatient(String diseaseType) async {
-  if (_currentUser == null) return;
-  _currentUser = _currentUser!.copyWith(
-    healthStatus: AppConstants.patient,
-    diseaseType: diseaseType,
-  );
-  await _localStorage.saveUser(_currentUser!);
-  await AuthService().updateStoredUser(_currentUser!);
-  notifyListeners();
-}
+    if (_currentUser == null) return;
+    _currentUser = _currentUser!.copyWith(
+      healthStatus: AppConstants.patient,
+      diseaseType: diseaseType,
+    );
+    await _localStorage.saveUser(_currentUser!);
+    await AuthService().updateStoredUser(_currentUser!);
+    notifyListeners();
+  }
 
   // ════════════════════════════════════════════════════════════
   // ─── Measurements ───
@@ -400,14 +375,13 @@ Future<void> consumePendingBackgroundNotifications() async {
 
     final diseaseType = _currentUser!.diseaseType ?? 'hypertension';
     final loadHta = diseaseType == 'hypertension' || diseaseType == 'both';
-    final loadDia = diseaseType == 'diabetes' || diseaseType == 'both';
+    final loadDia = diseaseType == 'diabetes'     || diseaseType == 'both';
 
     if (loadHta) {
       final res = await _measureRepo.getHypertensionRecords();
       if (res.success && res.data != null) {
         _hypertensionRecords = res.data!;
       } else {
-        // Fallback local, puis mock
         _hypertensionRecords = await _localStorage.loadHypertensionRecords();
         if (_hypertensionRecords.isEmpty) {
           _hypertensionRecords = MockData.hypertensionRecords(_currentUser!.id);
@@ -440,7 +414,7 @@ Future<void> consumePendingBackgroundNotifications() async {
 
   Future<void> addHypertensionRecord(HypertensionRecord record) async {
     _hypertensionRecords.insert(0, record);
-    await _localStorage.saveHypertensionRecords(_hypertensionRecords); // ← persisté
+    await _localStorage.saveHypertensionRecords(_hypertensionRecords);
     notifyListeners();
     try {
       final res = await _measureRepo.addHypertensionRecord(record);
@@ -454,7 +428,7 @@ Future<void> consumePendingBackgroundNotifications() async {
 
   Future<void> addDiabetesRecord(DiabetesRecord record) async {
     _diabetesRecords.insert(0, record);
-    await _localStorage.saveDiabetesRecords(_diabetesRecords); // ← persisté
+    await _localStorage.saveDiabetesRecords(_diabetesRecords);
     notifyListeners();
     try {
       final res = await _measureRepo.addDiabetesRecord(record);
@@ -479,9 +453,8 @@ Future<void> consumePendingBackgroundNotifications() async {
     ..sort((a, b) {
       final aTime = DateTime(a.date.year, a.date.month, a.date.day, a.time.hour, a.time.minute);
       final bTime = DateTime(b.date.year, b.date.month, b.date.day, b.time.hour, b.time.minute);
-      return bTime.compareTo(aTime); 
-  });
-
+      return bTime.compareTo(aTime);
+    });
 
   List<ScreeningReminder> get overdueScreening => _screeningReminders
       .where((r) => !r.isCompleted && r.dueDate.isBefore(DateTime.now()))
@@ -490,7 +463,6 @@ Future<void> consumePendingBackgroundNotifications() async {
   Future<void> _loadReminders() async {
     _remindersState = LoadState.loading;
 
-    // Screening
     try {
       final res = await _reminderRepo.getScreeningReminders();
       _screeningReminders = res.success && res.data != null
@@ -506,7 +478,6 @@ Future<void> consumePendingBackgroundNotifications() async {
     }
 
     if (isPatient) {
-      // Prescriptions
       try {
         final res = await _prescriptionRepo.getPrescriptions();
         _prescriptions = res.success && res.data != null
@@ -519,7 +490,6 @@ Future<void> consumePendingBackgroundNotifications() async {
         if (_prescriptions.isEmpty) _prescriptions = MockData.mockPrescriptions;
       }
 
-      // Médicaments
       try {
         final res = await _reminderRepo.getMedicationReminders();
         _medicationReminders = res.success && res.data != null
@@ -534,7 +504,6 @@ Future<void> consumePendingBackgroundNotifications() async {
         }
       }
 
-      // Rappels simples
       try {
         final res = await _reminderRepo.getSimpleReminders();
         _simpleReminders = res.success && res.data != null
@@ -569,7 +538,7 @@ Future<void> consumePendingBackgroundNotifications() async {
     if (idx == -1) return;
     _screeningReminders[idx].isCompleted = !_screeningReminders[idx].isCompleted;
     if (_screeningReminders[idx].isCompleted) _notif.cancelScreeningReminder(id);
-    _localStorage.saveScreeningReminders(_screeningReminders); // ← persisté
+    _localStorage.saveScreeningReminders(_screeningReminders);
     notifyListeners();
     try { _reminderRepo.toggleScreeningReminder(id, _screeningReminders[idx].isCompleted); } catch (_) {}
   }
@@ -577,7 +546,7 @@ Future<void> consumePendingBackgroundNotifications() async {
   // ─── Medication ───
   Future<void> addMedicationReminder(MedicationReminder reminder) async {
     _medicationReminders.add(reminder);
-    await _localStorage.saveMedicationReminders(_medicationReminders); // ← persisté
+    await _localStorage.saveMedicationReminders(_medicationReminders);
     notifyListeners();
     await _scheduleMedicationAlarms(reminder);
     try { await _reminderRepo.addMedicationReminder(reminder); } catch (_) {}
@@ -588,7 +557,7 @@ Future<void> consumePendingBackgroundNotifications() async {
     if (idx == -1) return;
     await _cancelMedicationAlarms(_medicationReminders[idx]);
     _medicationReminders[idx] = updated;
-    await _localStorage.saveMedicationReminders(_medicationReminders); // ← persisté
+    await _localStorage.saveMedicationReminders(_medicationReminders);
     notifyListeners();
     await _scheduleMedicationAlarms(updated);
     try { await _reminderRepo.updateMedicationReminder(updated); } catch (_) {}
@@ -599,7 +568,7 @@ Future<void> consumePendingBackgroundNotifications() async {
     if (idx == -1) return;
     await _cancelMedicationAlarms(_medicationReminders[idx]);
     _medicationReminders.removeAt(idx);
-    await _localStorage.saveMedicationReminders(_medicationReminders); // ← persisté
+    await _localStorage.saveMedicationReminders(_medicationReminders);
     notifyListeners();
     try { await _reminderRepo.deleteMedicationReminder(id); } catch (_) {}
   }
@@ -607,7 +576,7 @@ Future<void> consumePendingBackgroundNotifications() async {
   // ─── Simple ───
   Future<void> addSimpleReminder(SimpleReminder reminder) async {
     _simpleReminders.add(reminder);
-    await _localStorage.saveSimpleReminders(_simpleReminders); // ← persisté
+    await _localStorage.saveSimpleReminders(_simpleReminders);
     await _scheduleSimpleAlarm(reminder);
     try { await _reminderRepo.addSimpleReminder(reminder); } catch (_) {}
     notifyListeners();
@@ -616,7 +585,7 @@ Future<void> consumePendingBackgroundNotifications() async {
   Future<void> deleteSimpleReminder(String id) async {
     await _cancelSimpleAlarm(id);
     _simpleReminders.removeWhere((r) => r.id == id);
-    await _localStorage.saveSimpleReminders(_simpleReminders); // ← persisté
+    await _localStorage.saveSimpleReminders(_simpleReminders);
     notifyListeners();
     try { await _reminderRepo.deleteSimpleReminder(id); } catch (_) {}
   }
@@ -626,7 +595,7 @@ Future<void> consumePendingBackgroundNotifications() async {
     if (idx == -1) return;
     _simpleReminders[idx].isCompleted = !_simpleReminders[idx].isCompleted;
     if (_simpleReminders[idx].isCompleted) _cancelSimpleAlarm(id);
-    _localStorage.saveSimpleReminders(_simpleReminders); // ← persisté
+    _localStorage.saveSimpleReminders(_simpleReminders);
     notifyListeners();
   }
 
@@ -634,36 +603,32 @@ Future<void> consumePendingBackgroundNotifications() async {
   // ─── Logique alarme / notification ───
   // ════════════════════════════════════════════════════════════
   Future<void> _scheduleMedicationAlarms(MedicationReminder med) async {
-  for (var i = 0; i < med.intakeTimes.length; i++) {
-    await _notif.scheduleMedicationReminder(med, med.intakeTimes[i], i);
-    
-    // ← NOUVEAU : pré-enregistrer la notification in-app
-    await _saveScheduledNotification(
-      id: '${med.id}_${med.intakeTimes[i].hour}_${med.intakeTimes[i].minute}',
-      title: 'Prise de médicament',
-      body: '${med.medicationName} ${med.dosage}',
-      type: NotificationType.medicationReminder,
-      scheduledFor: _nextAlarmDateTime(med.intakeTimes[i]),
-    );
+    for (var i = 0; i < med.intakeTimes.length; i++) {
+      await _notif.scheduleMedicationReminder(med, med.intakeTimes[i], i);
+      await _saveScheduledNotification(
+        id: '${med.id}_${med.intakeTimes[i].hour}_${med.intakeTimes[i].minute}',
+        title: 'Prise de médicament',
+        body: '${med.medicationName} ${med.dosage}',
+        type: NotificationType.medicationReminder,
+        scheduledFor: _nextAlarmDateTime(med.intakeTimes[i]),
+      );
+    }
+    if (med.needsRenewal) await _notif.scheduleRenewalAlert(med);
   }
-  if (med.needsRenewal) await _notif.scheduleRenewalAlert(med);
-}
 
   Future<void> _scheduleSimpleAlarm(SimpleReminder reminder) async {
-  await _notif.scheduleSimpleReminder(reminder);
-  
-  // ← NOUVEAU : pré-enregistrer
-  await _saveScheduledNotification(
-    id: 'simple_${reminder.id}',
-    title: 'Rappel',
-    body: reminder.label,
-    type: NotificationType.generalInfo,
-    scheduledFor: DateTime(
-      reminder.date.year, reminder.date.month, reminder.date.day,
-      reminder.time.hour, reminder.time.minute,
-    ),
-  );
-}
+    await _notif.scheduleSimpleReminder(reminder);
+    await _saveScheduledNotification(
+      id: 'simple_${reminder.id}',
+      title: 'Rappel',
+      body: reminder.label,
+      type: NotificationType.generalInfo,
+      scheduledFor: DateTime(
+        reminder.date.year, reminder.date.month, reminder.date.day,
+        reminder.time.hour, reminder.time.minute,
+      ),
+    );
+  }
 
   Future<void> _cancelMedicationAlarms(MedicationReminder med) async {
     await _notif.cancelMedicationReminders(med);
@@ -689,29 +654,29 @@ Future<void> consumePendingBackgroundNotifications() async {
   Future<void> scheduleAllReminders() => _scheduleAll();
 
   DateTime _nextAlarmDateTime(TimeOfDay time) {
-  final now = DateTime.now();
-  var dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
-  if (dt.isBefore(now)) dt = dt.add(const Duration(days: 1));
-  return dt;
-}
+    final now = DateTime.now();
+    var dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+    if (dt.isBefore(now)) dt = dt.add(const Duration(days: 1));
+    return dt;
+  }
 
-Future<void> _saveScheduledNotification({
-  required String id,
-  required String title,
-  required String body,
-  required NotificationType type,
-  required DateTime scheduledFor,
-}) async {
-  final notif = NotificationModel(
-    id: id,
-    title: title,
-    body: body,
-    type: type,
-    createdAt: scheduledFor,
-    isRead: false,
-  );
-  await _localStorage.saveScheduledNotification(notif);
-}
+  Future<void> _saveScheduledNotification({
+    required String id,
+    required String title,
+    required String body,
+    required NotificationType type,
+    required DateTime scheduledFor,
+  }) async {
+    final notif = NotificationModel(
+      id: id,
+      title: title,
+      body: body,
+      type: type,
+      createdAt: scheduledFor,
+      isRead: false,
+    );
+    await _localStorage.saveScheduledNotification(notif);
+  }
 
   // ════════════════════════════════════════════════════════════
   // ─── Advice ───
@@ -777,7 +742,6 @@ Future<void> _saveScheduledNotification({
     if (idx == -1) return;
     final was = _events[idx].isRegistered;
     _events[idx].isRegistered = !was;
-    // Persistre les IDs inscrits
     await _localStorage.saveRegisteredEventIds(
       _events.where((e) => e.isRegistered).map((e) => e.id).toList(),
     );
@@ -810,7 +774,7 @@ Future<void> _saveScheduledNotification({
 
   void addPrescription(Prescription prescription) {
     _prescriptions.insert(0, prescription);
-    _localStorage.savePrescriptions(_prescriptions); // ← persisté
+    _localStorage.savePrescriptions(_prescriptions);
     notifyListeners();
   }
 
@@ -819,8 +783,8 @@ Future<void> _saveScheduledNotification({
     for (final med in meds) await _cancelMedicationAlarms(med);
     _prescriptions.removeWhere((p) => p.id == prescriptionId);
     _medicationReminders.removeWhere((m) => m.prescriptionId == prescriptionId);
-    await _localStorage.savePrescriptions(_prescriptions);           // ← persisté
-    await _localStorage.saveMedicationReminders(_medicationReminders); // ← persisté
+    await _localStorage.savePrescriptions(_prescriptions);
+    await _localStorage.saveMedicationReminders(_medicationReminders);
     notifyListeners();
     try { await _prescriptionRepo.deletePrescription(prescriptionId); } catch (_) {}
   }
@@ -841,7 +805,7 @@ Future<void> _saveScheduledNotification({
 
   void saveAssessmentResult(SelfAssessmentResult result) {
     _lastAssessmentResult = result;
-    _localStorage.saveAssessmentResult(result); // ← persisté
+    _localStorage.saveAssessmentResult(result);
     notifyListeners();
   }
 
@@ -863,8 +827,15 @@ Future<void> _saveScheduledNotification({
   void loadMockNotifications() => _loadMockNotifications();
 
   void addNotification(NotificationModel notification) {
+    // Éviter les doublons
+    final exists = _notifications.any((n) =>
+        n.title == notification.title &&
+        n.body == notification.body &&
+        n.createdAt.difference(notification.createdAt).inMinutes.abs() < 2);
+    if (exists) return;
+
     _notifications.insert(0, notification);
-    _localStorage.saveNotifications(_notifications); // ← persisté
+    _localStorage.saveNotifications(_notifications);
     notifyListeners();
   }
 
@@ -872,80 +843,76 @@ Future<void> _saveScheduledNotification({
     final idx = _notifications.indexWhere((n) => n.id == id);
     if (idx != -1) {
       _notifications[idx] = _notifications[idx].copyWith(isRead: true);
-      _localStorage.saveNotifications(_notifications); // ← persisté
+      _localStorage.saveNotifications(_notifications);
       notifyListeners();
     }
   }
 
   void deleteNotification(String id) {
     _notifications.removeWhere((n) => n.id == id);
-    _localStorage.saveNotifications(_notifications); // ← persisté
+    _localStorage.saveNotifications(_notifications);
     notifyListeners();
   }
 
   void markAllAsRead() {
     _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
-    _localStorage.saveNotifications(_notifications); // ← persisté
+    _localStorage.saveNotifications(_notifications);
     notifyListeners();
   }
 
-
+  // ════════════════════════════════════════════════════════════
+  // ─── Medication Intakes ───
+  // ════════════════════════════════════════════════════════════
   List<MedicationIntake> _medicationIntakes = [];
-List<MedicationIntake> get medicationIntakes => _medicationIntakes;
+  List<MedicationIntake> get medicationIntakes => _medicationIntakes;
 
-// Charger les prises dans initWithUser / _loadFromLocal
-// Dans _loadFromLocal ajoute :
-// _medicationIntakes = await _localStorage.loadMedicationIntakes();
+  Future<void> confirmMedicationIntake(MedicationReminder med) async {
+    if (med.stock <= 0) return;
 
-Future<void> confirmMedicationIntake(MedicationReminder med) async {
-  if (med.stock <= 0) return;
+    final intake = MedicationIntake(
+      id: const Uuid().v4(),
+      medicationId: med.id,
+      medicationName: med.medicationName,
+      dosage: med.dosage,
+      takenAt: DateTime.now(),
+    );
 
-  final intake = MedicationIntake(
-    id: const Uuid().v4(),
-    medicationId: med.id,
-    medicationName: med.medicationName,
-    dosage: med.dosage,
-    takenAt: DateTime.now(),
-  );
+    final updated = MedicationReminder(
+      id: med.id,
+      medicationName: med.medicationName,
+      dosage: med.dosage,
+      intakeTimes: med.intakeTimes,
+      stock: med.stock - 1,
+      renewalAlertThreshold: med.renewalAlertThreshold,
+      diseaseType: med.diseaseType,
+      prescriptionId: med.prescriptionId,
+    );
 
-  // Décrémenter le stock
-  final updated = MedicationReminder(
-    id: med.id,
-    medicationName: med.medicationName,
-    dosage: med.dosage,
-    intakeTimes: med.intakeTimes,
-    stock: med.stock - 1,
-    renewalAlertThreshold: med.renewalAlertThreshold,
-    diseaseType: med.diseaseType,
-    prescriptionId: med.prescriptionId,
-  );
+    await updateMedicationReminder(updated);
 
-  // Mettre à jour le médicament
-  await updateMedicationReminder(updated);
+    _medicationIntakes.insert(0, intake);
+    await _localStorage.saveMedicationIntakes(_medicationIntakes);
 
-  // Sauvegarder la prise
-  _medicationIntakes.insert(0, intake);
-  await _localStorage.saveMedicationIntakes(_medicationIntakes);
+    try { await _intakeRepo.confirmIntake(intake); } catch (_) {}
 
-  // Envoyer à l'API (pour notifier le médecin)
-  try {
-  await _intakeRepo.confirmIntake(intake);
-} catch (_) {}
+    notifyListeners();
+  }
 
-  notifyListeners();
-}
+  bool isTakenToday(String medicationId, TimeOfDay time) {
+    final now = DateTime.now();
+    return _medicationIntakes.any((i) =>
+      i.medicationId == medicationId &&
+      i.takenAt.year == now.year &&
+      i.takenAt.month == now.month &&
+      i.takenAt.day == now.day &&
+      i.takenAt.hour == time.hour,
+    );
+  }
 
-// Vérifier si déjà pris aujourd'hui à cette heure
-bool isTakenToday(String medicationId, TimeOfDay time) {
-  final now = DateTime.now();
-  return _medicationIntakes.any((i) =>
-    i.medicationId == medicationId &&
-    i.takenAt.year == now.year &&
-    i.takenAt.month == now.month &&
-    i.takenAt.day == now.day &&
-    i.takenAt.hour == time.hour,
-  );
-}
+  @override
+  void dispose() {
+    super.dispose();
+  }
 
   Timer? _notifChecker;
 
@@ -956,17 +923,10 @@ void _startNotificationChecker() {
   });
 }
 
-
-@override
-void dispose() {
-  _notifChecker?.cancel();
-  super.dispose();
-}
-
 void _checkTriggeredReminders() {
   final now = DateTime.now();
 
-  // Rappels simples
+  // Rappels simples → marquer comme fait automatiquement
   for (final r in _simpleReminders) {
     if (r.isCompleted) continue;
     final reminderTime = DateTime(
@@ -978,8 +938,6 @@ void _checkTriggeredReminders() {
         reminderTime.day == now.day &&
         reminderTime.hour == now.hour &&
         reminderTime.minute == now.minute) {
-      
-      // Ajouter à la page notifications
       addNotification(NotificationModel(
         id: '${r.id}_${now.millisecondsSinceEpoch}',
         title: 'Rappel',
@@ -987,13 +945,11 @@ void _checkTriggeredReminders() {
         type: NotificationType.generalInfo,
         createdAt: now,
       ));
-
-      // Marquer automatiquement comme fait
       toggleSimpleReminder(r.id);
     }
   }
 
-  // Médicaments — inchangé
+  // Médicaments → ajouter notif in-app
   for (final med in _medicationReminders) {
     if (!med.isActive || med.stock <= 0) continue;
     for (final t in med.intakeTimes) {
@@ -1009,4 +965,6 @@ void _checkTriggeredReminders() {
     }
   }
 }
+
+
 }

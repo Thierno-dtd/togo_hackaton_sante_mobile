@@ -471,50 +471,7 @@
       ];
     }
 
-    static List<Prescription> mockPrescriptions = [
-  Prescription(
-    id: 'rx1',
-    reference: 'ORD-2024-001',
-    imageLocalPath: null,
-    prescriptionDate: DateTime.now().subtract(const Duration(days: 15)),
-    doctorName: 'Dr. Agbeko',
-    hospital: 'CHU Sylvanus Olympio',
-    createdAt: DateTime.now().subtract(const Duration(days: 15)),
-  ),
-  Prescription(
-    id: 'rx2',
-    reference: 'ORD-2024-002',
-    prescriptionDate: DateTime.now().subtract(const Duration(days: 7)),
-    doctorName: 'Dr. Amévor',
-    hospital: 'Hôpital de Bè',
-    createdAt: DateTime.now().subtract(const Duration(days: 7)),
-  ),
-];
+    static List<Prescription> mockPrescriptions = [];
       // Mettre à jour defaultMedicationReminders
-    static List<MedicationReminder> defaultMedicationReminders = [
-      MedicationReminder(
-        id: 'mr1',
-        medicationName: 'Amlodipine',
-        dosage: '5mg',
-        intakeTimes: [const TimeOfDay(hour: 7, minute: 30)],
-        stock: 14,
-        renewalAlertThreshold: 7,
-        diseaseType: 'hypertension',
-        prescriptionId: 'rx1', // ← Lier à l'ordonnance
-      ),
-
-      MedicationReminder(
-        id: 'mr2',
-        medicationName: 'Metformine',
-        dosage: '500mg',
-        intakeTimes: [
-        const TimeOfDay(hour: 7, minute: 0),
-        const TimeOfDay(hour: 19, minute: 0),
-        ],
-        stock: 5,
-        renewalAlertThreshold: 7,
-        diseaseType: 'diabetes',
-        prescriptionId: 'rx2', // ← Lier à l'ordonnance
-        ),
-    ];
+    static List<MedicationReminder> defaultMedicationReminders = [ ];
   }
