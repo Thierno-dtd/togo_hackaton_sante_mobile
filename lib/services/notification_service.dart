@@ -11,6 +11,8 @@ import '../data/models/models.dart';
 import '../data/models/notification_model.dart';
 
 const _pendingNotifKey = 'pending_notifications';
+const _lifecycleChannel = MethodChannel('com.example.lamesse_dama_mobile/lifecycle');
+const _pendingPayloadsChannel = MethodChannel('com.example.lamesse_dama_mobile/pending_payloads');
 
 // ── Callback background — top-level obligatoire ──
 @pragma('vm:entry-point')
@@ -123,9 +125,38 @@ class NotificationService {
 
     await ap?.requestExactAlarmsPermission();
 
+    _lifecycleChannel.setMethodCallHandler((call) async {
+    if (call.method == 'onResume') {
+      await _processPendingPayloads();
+    }
+  });
+
     _initialized = true;
     debugPrint('✅ NotificationService initialisé');
   }
+
+  // ── Traiter les payloads reçus en background ──
+Future<void> _processPendingPayloads() async {
+  try {
+    final List<dynamic> payloads = await _pendingPayloadsChannel
+        .invokeMethod('getPendingPayloads');
+    for (final payload in payloads) {
+      final model = payloadToNotificationModel(payload as String);
+      if (model != null) {
+        onNotificationReceived?.call(model);
+      }
+    }
+  } catch (_) {}
+  
+  // Aussi consommer via SharedPreferences (double filet de sécurité)
+  final pending = await consumePendingNotifications();
+  for (final model in pending) {
+    onNotificationReceived?.call(model);
+  }
+}
+
+// Méthode publique à appeler depuis AppProvider au retour au premier plan
+Future<void> processPendingOnResume() => _processPendingPayloads();
 
   // ── Handler foreground ──
   void _onForeground(NotificationResponse response) {
@@ -204,7 +235,7 @@ class NotificationService {
   MedicationReminder medication, TimeOfDay time, int timeIndex) async {
   await initialize();
 
-  if (medication.stock <= 0) return; // plus de stock, pas d'alarme
+  if (medication.stock <= 0) return;
 
   final now = DateTime.now();
   DateTime alarmTime = DateTime(
@@ -244,7 +275,7 @@ class NotificationService {
         interruptionLevel: InterruptionLevel.timeSensitive,
       ),
     ),
-    androidScheduleMode: AndroidScheduleMode.alarmClock, // même que rappel simple
+    androidScheduleMode: AndroidScheduleMode.alarmClock, 
     uiLocalNotificationDateInterpretation:
         UILocalNotificationDateInterpretation.absoluteTime,
     matchDateTimeComponents: DateTimeComponents.time, // répète chaque jour

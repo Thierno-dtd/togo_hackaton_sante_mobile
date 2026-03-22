@@ -165,6 +165,7 @@ class AppProvider extends ChangeNotifier {
       ]);
       // Sauvegarder ce qui vient de l'API en local
       await _persistAll();
+      _medicationIntakes = await _localStorage.loadMedicationIntakes();
     }
 
     // Charger les notifs persistées
@@ -176,6 +177,16 @@ class AppProvider extends ChangeNotifier {
 
     notifyListeners();
   }
+
+  // ── Consommer les notifs reçues en background au retour au premier plan ──
+Future<void> consumePendingBackgroundNotifications() async {
+  final pending = await _notif.consumePendingNotifications();
+  for (final n in pending) {
+    addNotification(n);
+  }
+  // Aussi via le channel natif
+  await _notif.processPendingOnResume();
+}
 
   // ─── Chargement local (offline-first) ───
   Future<void> _loadFromLocal(UserModel user) async {
@@ -216,6 +227,7 @@ class AppProvider extends ChangeNotifier {
       }
 
       _simpleReminders = await _localStorage.loadSimpleReminders();
+      _medicationIntakes = await _localStorage.loadMedicationIntakes();
       if (_simpleReminders.isEmpty) {
         _simpleReminders = MockData.defaultSimpleReminders;
       }

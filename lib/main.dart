@@ -1,9 +1,5 @@
-import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
-import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
@@ -27,7 +23,6 @@ void main() async {
     statusBarIconBrightness: Brightness.light,
   ));
 
-  await initializeService();
   
   final provider = AppProvider();
   await provider.initAppSettings();
@@ -41,82 +36,7 @@ void main() async {
   );
 }
 
-// ─── Canal pour la notification persistante du service ───
-const AndroidNotificationChannel _bgChannel = AndroidNotificationChannel(
-  'bg_service_channel',
-  'Service de rappels',
-  description: 'Maintient les rappels actifs en arrière-plan',
-  importance: Importance.low,
-);
 
-Future<void> initializeService() async {
-  // Créer le canal AVANT de démarrer le service
-  final plugin = FlutterLocalNotificationsPlugin();
-  await plugin
-      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-      ?.createNotificationChannel(_bgChannel);
-
-  final service = FlutterBackgroundService();
-
-  await service.configure(
-    iosConfiguration: IosConfiguration(
-      autoStart: true,
-      onForeground: onStart,
-      onBackground: onBackground,
-    ),
-    androidConfiguration: AndroidConfiguration(
-      onStart: onStart,
-      isForegroundMode: true,
-      autoStart: true,
-      autoStartOnBoot: true,
-      notificationChannelId: 'bg_service_channel', // ✅ même ID que le canal créé
-      initialNotificationTitle: 'Laméssé Dama',
-      initialNotificationContent: 'Rappels actifs',
-      foregroundServiceNotificationId: 888,
-    ),
-  );
-
-  await service.startService();
-}
-
-@pragma('vm:entry-point')
-void onStart(ServiceInstance service) async {
-  // ✅ Obligatoire en premier dans l'isolate background
-  DartPluginRegistrant.ensureInitialized();
-
-  if (service is AndroidServiceInstance) {
-    service.on('setAsForeground').listen((_) {
-      service.setAsForegroundService();
-    });
-    service.on('setAsBackground').listen((_) {
-      service.setAsBackgroundService();
-    });
-  }
-
-  service.on('stop').listen((_) {
-    service.stopSelf();
-  });
-
-  // Garder le service vivant + mettre à jour la notification
-  Timer.periodic(const Duration(minutes: 1), (timer) async {
-    if (service is AndroidServiceInstance) {
-      if (await service.isForegroundService()) {
-        final now = DateTime.now();
-        service.setForegroundNotificationInfo(
-          title: 'Laméssé Dama',
-          content:
-              'Rappels actifs — ${now.hour}:${now.minute.toString().padLeft(2, '0')}',
-        );
-      }
-    }
-  });
-}
-
-@pragma('vm:entry-point')
-bool onBackground(ServiceInstance service) {
-  DartPluginRegistrant.ensureInitialized();
-  return true;
-}
 
 class LamesseDamaApp extends StatelessWidget {
   const LamesseDamaApp({super.key});
@@ -168,28 +88,27 @@ class _AppLockGateState extends State<_AppLockGate>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initNotificationListener();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    //_initNotificationListener();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       NotificationService.requestBatteryOptimizationExemption();
 
     final provider = context.read<AppProvider>();
     if (provider.appLockEnabled) {
       setState(() => _isLocked = true);
     }
+
+    final plugin = FlutterLocalNotificationsPlugin();
+    final details = await plugin.getNotificationAppLaunchDetails();
+    if (details?.didNotificationLaunchApp == true) {
+      final response = details!.notificationResponse;
+      if (response != null) {
+        _handleNotificationResponse(response);
+      }
+    }
     });
   }
 
-  void _initNotificationListener() {
-    FlutterLocalNotificationsPlugin().initialize(
-      const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-        iOS: DarwinInitializationSettings(),
-      ),
-      onDidReceiveNotificationResponse: _handleNotificationResponse,
-      onDidReceiveBackgroundNotificationResponse: onBackgroundNotification,
-    );
-  }
-
+ 
   void _handleNotificationResponse(NotificationResponse response) {
     final payload = response.payload ?? '';
     final actionId = response.actionId ?? '';
@@ -244,14 +163,18 @@ class _AppLockGateState extends State<_AppLockGate>
   }
 
   @override
-void didChangeAppLifecycleState(AppLifecycleState state) {
-  if (!mounted) return;
-  final provider = context.read<AppProvider>();
-   if (!provider.appLockEnabled) return;
-  if (state == AppLifecycleState.paused && provider.appLockEnabled) {
-    setState(() => _isLocked = true);
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+    final provider = context.read<AppProvider>();
+
+     if (state == AppLifecycleState.resumed) {
+        provider.consumePendingBackgroundNotifications();
+      }
+    if (!provider.appLockEnabled) return;
+    if (state == AppLifecycleState.paused && provider.appLockEnabled) {
+      setState(() => _isLocked = true);
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {

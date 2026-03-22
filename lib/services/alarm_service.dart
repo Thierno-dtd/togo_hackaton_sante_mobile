@@ -35,7 +35,7 @@ class AlarmService {
     } catch (e) {
       // ignore
     }
-    await FlutterLocalNotificationsPlugin().cancelAll();
+    //await FlutterLocalNotificationsPlugin().cancelAll();
   }
 
   // ── Snooze ──
