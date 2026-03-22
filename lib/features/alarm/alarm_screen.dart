@@ -1,3 +1,9 @@
+// ═══════════════════════════════════════════════════════════
+// FICHIER : lib/features/alarm/alarm_screen.dart
+// CORRECTION : écouter AppLifecycleState pour relâcher le
+// wakelock et l'immersive mode quand le tel se verrouille
+// ═══════════════════════════════════════════════════════════
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -24,29 +30,30 @@ class AlarmScreen extends StatefulWidget {
 }
 
 class _AlarmScreenState extends State<AlarmScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _pulseCtrl;
   late Animation<double> _pulse;
   late Timer _timeTimer;
   String _currentTime = '';
   bool _isStopping = false;
 
- @override
+  @override
   void initState() {
     super.initState();
+
+    // FIX : observer pour détecter le verrouillage
+    WidgetsBinding.instance.addObserver(this);
 
     WakelockPlus.enable();
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
-    // ── Démarrer le son natif ──
     AlarmService.startNativeAlarm(
       title: widget.title,
       body: widget.body,
       type: widget.params['type'] ?? 'simple',
     );
 
-    // Animation
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -55,23 +62,49 @@ class _AlarmScreenState extends State<AlarmScreen>
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
 
-    // Heure
     _updateTime();
     _timeTimer =
         Timer.periodic(const Duration(seconds: 1), (_) => _updateTime());
   }
 
+  // FIX : écouter les changements de cycle de vie
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      // Le téléphone se verrouille ou l'app passe en arrière-plan
+      // → relâcher l'immersive mode et le wakelock
+      _releaseScreen();
+    } else if (state == AppLifecycleState.resumed) {
+      // L'app revient au premier plan (ex: alarme toujours active)
+      if (!_isStopping) {
+        WakelockPlus.enable();
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      }
+    }
+  }
+
+  void _releaseScreen() {
+    try {
+      WakelockPlus.disable();
+    } catch (_) {}
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
   void _updateTime() {
     final now = DateTime.now();
-    setState(() {
-      _currentTime =
-          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-    });
+    if (mounted) {
+      setState(() {
+        _currentTime =
+            '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+      });
+    }
   }
 
   Future<void> _stopAlarm() async {
     if (_isStopping) return;
     setState(() => _isStopping = true);
+    _releaseScreen();
     await AlarmService.stopAlarm();
     if (mounted) Navigator.of(context).pop();
   }
@@ -79,16 +112,17 @@ class _AlarmScreenState extends State<AlarmScreen>
   Future<void> _snooze() async {
     if (_isStopping) return;
     setState(() => _isStopping = true);
+    _releaseScreen();
     await AlarmService.snoozeAlarm(widget.alarmId, widget.params);
     if (mounted) Navigator.of(context).pop();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pulseCtrl.dispose();
     _timeTimer.cancel();
-    WakelockPlus.disable();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    _releaseScreen(); // toujours relâcher au dispose
     super.dispose();
   }
 
@@ -97,7 +131,7 @@ class _AlarmScreenState extends State<AlarmScreen>
     final isMedication = widget.params['type'] == 'medication';
 
     return WillPopScope(
-      onWillPop: () async => false, // Bloquer le bouton retour
+      onWillPop: () async => false,
       child: Scaffold(
         backgroundColor: isMedication
             ? const Color(0xFF0D2030)
@@ -168,7 +202,6 @@ class _AlarmScreenState extends State<AlarmScreen>
 
               const SizedBox(height: 28),
 
-              // ── Titre ──
               Text(
                 widget.title,
                 style: const TextStyle(
@@ -182,7 +215,6 @@ class _AlarmScreenState extends State<AlarmScreen>
 
               const SizedBox(height: 8),
 
-              // ── Description ──
               Text(
                 widget.body,
                 style: TextStyle(
@@ -200,7 +232,6 @@ class _AlarmScreenState extends State<AlarmScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 40),
                 child: Row(
                   children: [
-                    // Snooze
                     Expanded(
                       child: GestureDetector(
                         onTap: _snooze,
@@ -243,7 +274,6 @@ class _AlarmScreenState extends State<AlarmScreen>
 
                     const SizedBox(width: 16),
 
-                    // Arrêter — bouton principal
                     Expanded(
                       flex: 2,
                       child: GestureDetector(
@@ -292,7 +322,6 @@ class _AlarmScreenState extends State<AlarmScreen>
 
               const SizedBox(height: 48),
 
-              // Indication swipe
               Text(
                 'Appuyez sur Arrêter pour stopper l\'alarme',
                 style: TextStyle(

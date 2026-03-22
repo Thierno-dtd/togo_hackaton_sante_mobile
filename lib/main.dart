@@ -1,3 +1,13 @@
+// ═══════════════════════════════════════════════════════════
+// FICHIER : lib/main.dart
+// CORRECTIONS :
+//   1. checkAutoLogin wrappé dans try/catch global pour éviter
+//      que l'app reste bloquée sur le splash en release
+//   2. SplashScreen avec timeout de sécurité (5 secondes max)
+//   3. isLoggedIn/hasUser lus APRÈS checkAutoLogin via watch
+//      pour que le widget se rebuild quand l'état change
+// ═══════════════════════════════════════════════════════════
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -23,10 +33,14 @@ void main() async {
     statusBarIconBrightness: Brightness.light,
   ));
 
-  
   final provider = AppProvider();
-  await provider.initAppSettings();
-  await provider.checkAutoLogin();
+
+  // FIX : wrap dans try/catch pour éviter crash silencieux en release
+  try {
+    await provider.initAppSettings();
+  } catch (e) {
+    debugPrint('initAppSettings error: $e');
+  }
 
   runApp(
     ChangeNotifierProvider.value(
@@ -36,8 +50,6 @@ void main() async {
   );
 }
 
-
-
 class LamesseDamaApp extends StatelessWidget {
   const LamesseDamaApp({super.key});
 
@@ -46,8 +58,6 @@ class LamesseDamaApp extends StatelessWidget {
     final themeMode = context.select<AppProvider, ThemeMode>(
       (p) => p.themeMode,
     );
-    final isLoggedIn = context.read<AppProvider>().isLoggedIn;
-    final hasUser = context.read<AppProvider>().currentUser != null;
 
     return MaterialApp(
       title: 'Lamesse Dama',
@@ -63,16 +73,133 @@ class LamesseDamaApp extends StatelessWidget {
         '/followup': (_) => const FollowUpPage(),
         '/events': (_) => const EventsPage(),
         '/login': (_) => const LoginPage(),
-        '/home': (_) => const MainNavigation(), 
-
+        '/home': (_) => const MainNavigation(),
       },
-      home: isLoggedIn && hasUser
-          ? const _AppLockGate()  
-          : const LoginPage(),
+      // FIX : utiliser _AuthGate qui gère checkAutoLogin de façon sécurisée
+      home: const _AuthGate(),
     );
   }
 }
 
+// ════════════════════════════════════════════════════════════
+// ─── Auth Gate : gère le checkAutoLogin de façon robuste ───
+// ════════════════════════════════════════════════════════════
+class _AuthGate extends StatefulWidget {
+  const _AuthGate();
+
+  @override
+  State<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<_AuthGate> {
+  bool _isChecking = true;
+  bool _autoLoginSuccess = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _doAutoLogin();
+  }
+
+  Future<void> _doAutoLogin() async {
+    final provider = context.read<AppProvider>();
+
+    // Timeout de sécurité : 5 secondes max pour éviter le splash infini
+    bool timedOut = false;
+    final timeout = Future.delayed(const Duration(seconds: 5), () {
+      timedOut = true;
+    });
+
+    bool success = false;
+    try {
+      // Race entre checkAutoLogin et le timeout
+      await Future.any([
+        provider.checkAutoLogin().then((v) => success = v),
+        timeout,
+      ]);
+    } catch (e) {
+      debugPrint('checkAutoLogin error (release): $e');
+      success = false;
+    }
+
+    if (timedOut) {
+      debugPrint('⚠️ checkAutoLogin timeout — redirection vers login');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isChecking = false;
+      _autoLoginSuccess = success && !timedOut;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Pendant le check → splash minimaliste
+    if (_isChecking) {
+      return const _SplashScreen();
+    }
+
+    // Une fois le check terminé
+    if (_autoLoginSuccess) {
+      return const _AppLockGate();
+    }
+    return const LoginPage();
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// ─── Splash Screen ───
+// ════════════════════════════════════════════════════════════
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.primary,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.white.withOpacity(0.3)),
+              ),
+              child: const Icon(
+                Icons.monitor_heart,
+                color: Colors.white,
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Lamesse Dama',
+              style: AppTextStyles.h2.copyWith(color: Colors.white),
+            ),
+            const SizedBox(height: 32),
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// ─── App Lock Gate ───
+// ════════════════════════════════════════════════════════════
 class _AppLockGate extends StatefulWidget {
   const _AppLockGate();
 
@@ -88,42 +215,50 @@ class _AppLockGateState extends State<_AppLockGate>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    //_initNotificationListener();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      NotificationService.requestBatteryOptimizationExemption();
+      // Demander l'exemption batterie
+      try {
+        NotificationService.requestBatteryOptimizationExemption();
+      } catch (_) {}
 
-    final provider = context.read<AppProvider>();
-    if (provider.appLockEnabled) {
-      setState(() => _isLocked = true);
-    }
-
-    final plugin = FlutterLocalNotificationsPlugin();
-    final details = await plugin.getNotificationAppLaunchDetails();
-    if (details?.didNotificationLaunchApp == true) {
-      final response = details!.notificationResponse;
-      if (response != null) {
-        _handleNotificationResponse(response);
+      final provider = context.read<AppProvider>();
+      if (provider.appLockEnabled) {
+        setState(() => _isLocked = true);
       }
-    }
+
+      // Vérifier si l'app a été lancée depuis une notification
+      try {
+        final plugin = FlutterLocalNotificationsPlugin();
+        final details = await plugin.getNotificationAppLaunchDetails();
+        if (details?.didNotificationLaunchApp == true) {
+          final response = details!.notificationResponse;
+          if (response != null) {
+            _handleNotificationResponse(response);
+          }
+        }
+      } catch (e) {
+        debugPrint('notification launch details error: $e');
+      }
     });
   }
 
- 
   void _handleNotificationResponse(NotificationResponse response) {
     final payload = response.payload ?? '';
     final actionId = response.actionId ?? '';
 
     if (payload.isNotEmpty) {
-    final model = payloadToNotificationModel(payload);
-    if (model != null) {
-      final ctx = AppProvider.navigatorKey.currentContext;
-      if (ctx != null) {
-        ctx.read<AppProvider>().addNotification(model);
+      final model = payloadToNotificationModel(payload);
+      if (model != null) {
+        final ctx = AppProvider.navigatorKey.currentContext;
+        if (ctx != null) {
+          ctx.read<AppProvider>().addNotification(model);
+        }
       }
     }
-  }
 
-    if (actionId == 'stop_alarm' || actionId == 'taken' || actionId == 'done') {
+    if (actionId == 'stop_alarm' ||
+        actionId == 'taken' ||
+        actionId == 'done') {
       AlarmService.stopAlarm();
       return;
     }
@@ -132,7 +267,6 @@ class _AppLockGateState extends State<_AppLockGate>
 
     if (payload.isNotEmpty) _routeFromPayload(payload);
   }
-
 
   void _routeFromPayload(String payload) {
     final parts = payload.split('|');
@@ -167,9 +301,13 @@ class _AppLockGateState extends State<_AppLockGate>
     if (!mounted) return;
     final provider = context.read<AppProvider>();
 
-     if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed) {
+      try {
         provider.consumePendingBackgroundNotifications();
+      } catch (e) {
+        debugPrint('consumePending error: $e');
       }
+    }
     if (!provider.appLockEnabled) return;
     if (state == AppLifecycleState.paused && provider.appLockEnabled) {
       setState(() => _isLocked = true);
@@ -186,6 +324,9 @@ class _AppLockGateState extends State<_AppLockGate>
   }
 }
 
+// ════════════════════════════════════════════════════════════
+// ─── App Lock Screen ───
+// ════════════════════════════════════════════════════════════
 class _AppLockScreen extends StatefulWidget {
   final VoidCallback onUnlock;
   const _AppLockScreen({required this.onUnlock});
@@ -236,13 +377,10 @@ class _AppLockScreenState extends State<_AppLockScreen> {
                 MediaQuery.of(context).viewInsets.bottom + 32,
               ),
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // 🔷 ICON
                     Container(
                       width: 80,
                       height: 80,
@@ -267,10 +405,7 @@ class _AppLockScreenState extends State<_AppLockScreen> {
                         size: 40,
                       ),
                     ),
-
                     const SizedBox(height: 24),
-
-                    // 🔷 TITRE
                     Text(
                       'Application verrouillée',
                       style: AppTextStyles.h3.copyWith(
@@ -279,19 +414,13 @@ class _AppLockScreenState extends State<_AppLockScreen> {
                             : AppColors.textPrimary,
                       ),
                     ),
-
                     const SizedBox(height: 8),
-
-                    // 🔷 DESCRIPTION
                     Text(
                       'Entrez votre mot de passe pour continuer',
                       style: AppTextStyles.bodySmall,
                       textAlign: TextAlign.center,
                     ),
-
                     const SizedBox(height: 40),
-
-                    // 🔷 INPUT
                     TextField(
                       controller: _passwordCtrl,
                       obscureText: _obscure,
@@ -313,10 +442,7 @@ class _AppLockScreenState extends State<_AppLockScreen> {
                         errorText: _error,
                       ),
                     ),
-
                     const SizedBox(height: 20),
-
-                    // 🔷 BUTTON
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
@@ -324,15 +450,13 @@ class _AppLockScreenState extends State<_AppLockScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        icon: const Icon(
-                          Icons.lock_open_outlined,
-                          size: 18,
-                        ),
+                        icon: const Icon(Icons.lock_open_outlined, size: 18),
                         label: Text(
                           'Déverrouiller',
                           style: AppTextStyles.button
@@ -340,10 +464,7 @@ class _AppLockScreenState extends State<_AppLockScreen> {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 16),
-
-                    // 🔷 LOGOUT
                     TextButton(
                       onPressed: () =>
                           context.read<AppProvider>().logout(),
