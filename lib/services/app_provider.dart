@@ -66,6 +66,16 @@ class AppProvider extends ChangeNotifier {
   bool get appLockEnabled       => _appLockEnabled;
   bool get isPatient            => _currentUser?.isPatient ?? false;
 
+  // ── Flag bienvenue post-validation ──
+  bool _pendingValidationWelcome = false;
+  bool get pendingValidationWelcome => _pendingValidationWelcome;
+
+  /// Appelé par la navigation après affichage du dialog pour reset le flag.
+  void consumeValidationWelcome() {
+    _pendingValidationWelcome = false;
+    notifyListeners();
+  }
+
   // ─── Loading states ───
   LoadState _measurementsState = LoadState.idle;
   LoadState _remindersState    = LoadState.idle;
@@ -134,6 +144,10 @@ class AppProvider extends ChangeNotifier {
   Future<void> initWithUser(UserModel user, {bool fromLocal = false}) async {
     _currentUser = user;
     _isLoggedIn  = true;
+
+    // Vérifier si un welcome post-validation est en attente pour cet utilisateur
+    await _checkValidationWelcome(user);
+
     notifyListeners();
 
     // ── Initialiser les services ──
@@ -173,15 +187,36 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Vérification bienvenue post-validation ──
+  Future<void> _checkValidationWelcome(UserModel user) async {
+    final pendingEmail = await _localStorage.loadValidationWelcomePending();
+    if (pendingEmail != null &&
+        pendingEmail.toLowerCase() == user.email.toLowerCase()) {
+      _pendingValidationWelcome = true;
+      // Consommer le flag pour qu'il ne s'affiche qu'une seule fois
+      await _localStorage.consumeValidationWelcome();
+
+      // Injecter la notification in-app (sera ajoutée après chargement des notifs)
+      final notif = NotificationModel(
+        id: 'validation_welcome_${DateTime.now().millisecondsSinceEpoch}',
+        title: '✅ Demande validée !',
+        body:
+            'Votre demande patient a été acceptée. Rendez-vous dans Paramètres pour compléter votre profil (localisation, poids, taille).',
+        type: NotificationType.doctorAppointment,
+        createdAt: DateTime.now(),
+        isRead: false,
+      );
+      // Insérer en tête des notifications (elles seront persistées après)
+      _notifications.insert(0, notif);
+    }
+  }
+
   // ════════════════════════════════════════════════════════════
-  // ─── Retour au premier plan (appelé depuis main.dart) ───
+  // ─── Retour au premier plan ───
   // ════════════════════════════════════════════════════════════
   Future<void> consumePendingBackgroundNotifications() async {
-    // 1. Notifs pré-planifiées dont l'heure est passée
     final triggered = await _localStorage.consumeTriggeredScheduledNotifications();
     for (final n in triggered) addNotification(n);
-
-    // 2. Double filet : SharedPrefs + channel natif
     await _notif.processPendingOnResume();
   }
 
@@ -248,10 +283,18 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> _loadPersistedNotifications() async {
     final persisted = await _localStorage.loadNotifications();
-    if (persisted.isEmpty) {
+    if (persisted.isEmpty && _notifications.isEmpty) {
       _loadMockNotifications();
     } else {
+      // Fusionner les notifs pré-insérées (ex: welcome) avec les persistées
+      final existingIds = persisted.map((n) => n.id).toSet();
+      for (final n in _notifications) {
+        if (!existingIds.contains(n.id)) {
+          persisted.insert(0, n);
+        }
+      }
       _notifications = persisted;
+      await _localStorage.saveNotifications(_notifications);
     }
     notifyListeners();
   }
@@ -309,6 +352,7 @@ class AppProvider extends ChangeNotifier {
     _notifications        = [];
     _medicationIntakes    = [];
     _lastAssessmentResult = null;
+    _pendingValidationWelcome = false;
     _measurementsState    = LoadState.idle;
     _remindersState       = LoadState.idle;
     _eventsState          = LoadState.idle;
@@ -827,7 +871,6 @@ class AppProvider extends ChangeNotifier {
   void loadMockNotifications() => _loadMockNotifications();
 
   void addNotification(NotificationModel notification) {
-    // Éviter les doublons
     final exists = _notifications.any((n) =>
         n.title == notification.title &&
         n.body == notification.body &&
@@ -911,60 +954,57 @@ class AppProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _notifChecker?.cancel();
     super.dispose();
   }
 
   Timer? _notifChecker;
 
-void _startNotificationChecker() {
-  _notifChecker?.cancel();
-  _notifChecker = Timer.periodic(const Duration(minutes: 1), (_) {
-    _checkTriggeredReminders();
-  });
-}
-
-void _checkTriggeredReminders() {
-  final now = DateTime.now();
-
-  // Rappels simples → marquer comme fait automatiquement
-  for (final r in _simpleReminders) {
-    if (r.isCompleted) continue;
-    final reminderTime = DateTime(
-      r.date.year, r.date.month, r.date.day,
-      r.time.hour, r.time.minute,
-    );
-    if (reminderTime.year == now.year &&
-        reminderTime.month == now.month &&
-        reminderTime.day == now.day &&
-        reminderTime.hour == now.hour &&
-        reminderTime.minute == now.minute) {
-      addNotification(NotificationModel(
-        id: '${r.id}_${now.millisecondsSinceEpoch}',
-        title: 'Rappel',
-        body: r.label,
-        type: NotificationType.generalInfo,
-        createdAt: now,
-      ));
-      toggleSimpleReminder(r.id);
-    }
+  void _startNotificationChecker() {
+    _notifChecker?.cancel();
+    _notifChecker = Timer.periodic(const Duration(minutes: 1), (_) {
+      _checkTriggeredReminders();
+    });
   }
 
-  // Médicaments → ajouter notif in-app
-  for (final med in _medicationReminders) {
-    if (!med.isActive || med.stock <= 0) continue;
-    for (final t in med.intakeTimes) {
-      if (t.hour == now.hour && t.minute == now.minute) {
+  void _checkTriggeredReminders() {
+    final now = DateTime.now();
+
+    for (final r in _simpleReminders) {
+      if (r.isCompleted) continue;
+      final reminderTime = DateTime(
+        r.date.year, r.date.month, r.date.day,
+        r.time.hour, r.time.minute,
+      );
+      if (reminderTime.year == now.year &&
+          reminderTime.month == now.month &&
+          reminderTime.day == now.day &&
+          reminderTime.hour == now.hour &&
+          reminderTime.minute == now.minute) {
         addNotification(NotificationModel(
-          id: '${med.id}_${t.hour}_${t.minute}_${now.millisecondsSinceEpoch}',
-          title: 'Prise de médicament',
-          body: '${med.medicationName} ${med.dosage}',
-          type: NotificationType.medicationReminder,
+          id: '${r.id}_${now.millisecondsSinceEpoch}',
+          title: 'Rappel',
+          body: r.label,
+          type: NotificationType.generalInfo,
           createdAt: now,
         ));
+        toggleSimpleReminder(r.id);
+      }
+    }
+
+    for (final med in _medicationReminders) {
+      if (!med.isActive || med.stock <= 0) continue;
+      for (final t in med.intakeTimes) {
+        if (t.hour == now.hour && t.minute == now.minute) {
+          addNotification(NotificationModel(
+            id: '${med.id}_${t.hour}_${t.minute}_${now.millisecondsSinceEpoch}',
+            title: 'Prise de médicament',
+            body: '${med.medicationName} ${med.dosage}',
+            type: NotificationType.medicationReminder,
+            createdAt: now,
+          ));
+        }
       }
     }
   }
-}
-
-
 }

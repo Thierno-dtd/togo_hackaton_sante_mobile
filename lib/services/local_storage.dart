@@ -22,9 +22,36 @@ class LocalStorage {
   static const _kMedications         = 'ld_medication_reminders';
   static const _kSimpleReminders     = 'ld_simple_reminders';
   static const _kPrescriptions       = 'ld_prescriptions';
-  static const _kEvents              = 'ld_events_registered'; // seulement les ids inscrits
+  static const _kEvents              = 'ld_events_registered';
   static const _kAssessmentResult    = 'ld_last_assessment';
   static const _kNotifications       = 'ld_notifications';
+
+  /// Clé pour détecter qu'un utilisateur vient d'être validé
+  /// et doit voir le message de bienvenue patient à sa prochaine connexion.
+  static const _kValidationWelcomePending = 'ld_validation_welcome_pending';
+
+  // ════════════════════════════════════════════════════════════
+  // ─── Validation welcome ───
+  // ════════════════════════════════════════════════════════════
+
+  /// Marque que cet utilisateur (par email) doit voir le dialog de validation
+  /// à sa prochaine connexion.
+  Future<void> saveValidationWelcomePending(String userEmail) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kValidationWelcomePending, userEmail);
+  }
+
+  /// Retourne l'email de l'utilisateur en attente de welcome, ou null.
+  Future<String?> loadValidationWelcomePending() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kValidationWelcomePending);
+  }
+
+  /// Consomme (supprime) le flag welcome — à appeler après affichage du dialog.
+  Future<void> consumeValidationWelcome() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kValidationWelcomePending);
+  }
 
   // ════════════════════════════════════════════════════════════
   // ─── User ───
@@ -229,7 +256,7 @@ class LocalStorage {
   }
 
   // ════════════════════════════════════════════════════════════
-  // ─── Événements — seulement les IDs inscrits ───
+  // ─── Événements ───
   // ════════════════════════════════════════════════════════════
   Future<void> saveRegisteredEventIds(List<String> ids) async {
     final prefs = await SharedPreferences.getInstance();
@@ -280,7 +307,6 @@ class LocalStorage {
   // ════════════════════════════════════════════════════════════
   Future<void> saveNotifications(List<NotificationModel> notifs) async {
     final prefs = await SharedPreferences.getInstance();
-    // Garder seulement les 50 plus récentes pour ne pas surcharger
     final toSave = notifs.take(50).map((n) => {
       'id': n.id,
       'title': n.title,
@@ -321,11 +347,12 @@ class LocalStorage {
       _kMedications, _kSimpleReminders, _kPrescriptions,
       _kEvents, _kAssessmentResult, _kNotifications,
       _kAppLockEnabled, _kLocalPassword,
+      // NE PAS supprimer _kValidationWelcomePending ici —
+      // il doit survivre au logout pour être lu à la reconnexion.
     ];
     for (final k in keys) {
       await prefs.remove(k);
     }
-    // Conserver le thème
   }
 
   // ════════════════════════════════════════════════════════════
@@ -357,77 +384,78 @@ class LocalStorage {
     ]);
   }
 
-
+  // ════════════════════════════════════════════════════════════
+  // ─── Medication Intakes ───
+  // ════════════════════════════════════════════════════════════
   static const _kIntakes = 'ld_medication_intakes';
 
-Future<void> saveMedicationIntakes(List<MedicationIntake> intakes) async {
-  final prefs = await SharedPreferences.getInstance();
-  final list = intakes.map((i) => i.toJson()).toList();
-  await prefs.setString(_kIntakes, jsonEncode(list));
-}
-
-Future<List<MedicationIntake>> loadMedicationIntakes() async {
-  final prefs = await SharedPreferences.getInstance();
-  final raw = prefs.getString(_kIntakes);
-  if (raw == null) return [];
-  try {
-    final list = jsonDecode(raw) as List;
-    return list.map((e) => MedicationIntake.fromJson(e)).toList();
-  } catch (_) {
-    return [];
+  Future<void> saveMedicationIntakes(List<MedicationIntake> intakes) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = intakes.map((i) => i.toJson()).toList();
+    await prefs.setString(_kIntakes, jsonEncode(list));
   }
-}
 
-static const _scheduledNotifsKey = 'scheduled_notifications';
+  Future<List<MedicationIntake>> loadMedicationIntakes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kIntakes);
+    if (raw == null) return [];
+    try {
+      final list = jsonDecode(raw) as List;
+      return list.map((e) => MedicationIntake.fromJson(e)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
 
-Future<void> saveScheduledNotification(NotificationModel notif) async {
-  final prefs = await SharedPreferences.getInstance();
-  final raw = prefs.getString(_scheduledNotifsKey);
-  final list = raw != null
-      ? List<Map<String, dynamic>>.from(jsonDecode(raw))
-      : <Map<String, dynamic>>[];
-  
-  // Éviter les doublons par id
-  list.removeWhere((m) => m['id'] == notif.id);
-  list.add({
-    'id': notif.id,
-    'title': notif.title,
-    'body': notif.body,
-    'type': notif.type.index,
-    'scheduledFor': notif.createdAt.toIso8601String(),
-  });
-  await prefs.setString(_scheduledNotifsKey, jsonEncode(list));
-}
+  // ════════════════════════════════════════════════════════════
+  // ─── Scheduled notifications ───
+  // ════════════════════════════════════════════════════════════
+  static const _scheduledNotifsKey = 'scheduled_notifications';
 
-Future<List<NotificationModel>> consumeTriggeredScheduledNotifications() async {
-  final prefs = await SharedPreferences.getInstance();
-  final raw = prefs.getString(_scheduledNotifsKey);
-  if (raw == null) return [];
+  Future<void> saveScheduledNotification(NotificationModel notif) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_scheduledNotifsKey);
+    final list = raw != null
+        ? List<Map<String, dynamic>>.from(jsonDecode(raw))
+        : <Map<String, dynamic>>[];
+    list.removeWhere((m) => m['id'] == notif.id);
+    list.add({
+      'id': notif.id,
+      'title': notif.title,
+      'body': notif.body,
+      'type': notif.type.index,
+      'scheduledFor': notif.createdAt.toIso8601String(),
+    });
+    await prefs.setString(_scheduledNotifsKey, jsonEncode(list));
+  }
 
-  final now = DateTime.now();
-  final all = List<Map<String, dynamic>>.from(jsonDecode(raw));
-  
-  // Séparer celles qui ont été déclenchées (scheduledFor <= maintenant)
-  final triggered = all.where((m) {
-    final scheduledFor = DateTime.tryParse(m['scheduledFor'] ?? '');
-    return scheduledFor != null && scheduledFor.isBefore(now);
-  }).toList();
-  
-  // Garder uniquement les futures
-  final remaining = all.where((m) {
-    final scheduledFor = DateTime.tryParse(m['scheduledFor'] ?? '');
-    return scheduledFor != null && scheduledFor.isAfter(now);
-  }).toList();
-  
-  await prefs.setString(_scheduledNotifsKey, jsonEncode(remaining));
-  
-  return triggered.map((m) => NotificationModel(
-    id: '${m['id']}_triggered_${now.millisecondsSinceEpoch}',
-    title: m['title'] ?? '',
-    body: m['body'] ?? '',
-    type: NotificationType.values[m['type'] ?? 0],
-    createdAt: DateTime.tryParse(m['scheduledFor'] ?? '') ?? now,
-    isRead: false,
-  )).toList();
-}
+  Future<List<NotificationModel>> consumeTriggeredScheduledNotifications() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_scheduledNotifsKey);
+    if (raw == null) return [];
+
+    final now = DateTime.now();
+    final all = List<Map<String, dynamic>>.from(jsonDecode(raw));
+
+    final triggered = all.where((m) {
+      final scheduledFor = DateTime.tryParse(m['scheduledFor'] ?? '');
+      return scheduledFor != null && scheduledFor.isBefore(now);
+    }).toList();
+
+    final remaining = all.where((m) {
+      final scheduledFor = DateTime.tryParse(m['scheduledFor'] ?? '');
+      return scheduledFor != null && scheduledFor.isAfter(now);
+    }).toList();
+
+    await prefs.setString(_scheduledNotifsKey, jsonEncode(remaining));
+
+    return triggered.map((m) => NotificationModel(
+      id: '${m['id']}_triggered_${now.millisecondsSinceEpoch}',
+      title: m['title'] ?? '',
+      body: m['body'] ?? '',
+      type: NotificationType.values[m['type'] ?? 0],
+      createdAt: DateTime.tryParse(m['scheduledFor'] ?? '') ?? now,
+      isRead: false,
+    )).toList();
+  }
 }

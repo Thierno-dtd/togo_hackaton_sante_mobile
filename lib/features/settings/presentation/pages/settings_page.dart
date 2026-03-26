@@ -8,6 +8,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/app_utils.dart';
 import '../../../../services/app_provider.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
+import '../../../../services/local_storage.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -1101,6 +1102,7 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
     }
   }
 
+  // ─── Méthode _submit() à remplacer ───────────────────────────────
   void _submit(BuildContext ctx) {
     if (_doctorEmailCtrl.text.trim().isEmpty) {
       AppUtils.showSnackBar(ctx, 'L\'email du médecin est obligatoire',
@@ -1118,13 +1120,39 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
           isError: true);
       return;
     }
-
-    // Simuler un upload
-    setState(() { _isSubmitting = true; });
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      if (mounted) setState(() { _isSubmitting = false; _step = 3; });
+ 
+    setState(() => _isSubmitting = true);
+ 
+    Future.delayed(const Duration(milliseconds: 1200), () async {
+      if (!mounted) return;
+ 
+      // 1. Mettre le statut à pending_validation dans le provider
+      final user = widget.provider.currentUser;
+      if (user != null) {
+        final updatedUser = user.copyWith(
+          healthStatus: 'pending_validation',
+          diseaseType: _disease,
+        );
+        await widget.provider.updateUser(updatedUser);
+ 
+        // 2. Sauvegarder le flag welcome pour la prochaine connexion
+        await LocalStorage().saveValidationWelcomePending(user.email);
+      }
+ 
+      setState(() => _isSubmitting = false);
+ 
+      // 3. Fermer la sheet directement
+      if (!mounted) return;
+      Navigator.pop(context);
+ 
+      // 4. Feedback utilisateur
+      AppUtils.showSnackBar(
+        ctx,
+        'Demande envoyée ! Déconnectez-vous pour finaliser lors de votre prochaine connexion.',
+      );
     });
   }
+ 
 
   void _simulateValidation() {
     setState(() => _step = 4);
