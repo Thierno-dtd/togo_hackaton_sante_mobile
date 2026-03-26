@@ -342,7 +342,7 @@ class NotificationService {
   // ════════════════════════════════════════════════════════════
   // ─── Rappel simple ───
   // ════════════════════════════════════════════════════════════
-  Future<void> scheduleSimpleReminder(SimpleReminder reminder) async {
+  Future<void> scheduleSimpleReminder(SimpleReminder reminder, {String libelle = "Rappel"}) async {
     await initialize();
 
     final alarmTime = DateTime(
@@ -376,7 +376,7 @@ class NotificationService {
 
     await _plugin.zonedSchedule(
       _simpleId(reminder.id),
-      '🔔 Rappel',
+      '🔔 '+ libelle,
       reminder.label,
       tzTime,
       NotificationDetails(
@@ -575,6 +575,26 @@ class NotificationService {
     }
   }
 
+  Future<void> showPatientValidatedNotification() async {
+  await initialize();
+
+  // Déclencher immédiatement (dans 2 secondes pour laisser l'UI se charger)
+  final triggerTime = DateTime.now().add(const Duration(seconds: 5));
+
+  final reminder = SimpleReminder(
+    id: 'patient_validated_${DateTime.now().millisecondsSinceEpoch}',
+    label: 'Votre demande a été validée. Complétez votre profil dans les Paramètres.',
+    date: triggerTime,
+    time: TimeOfDay(hour: triggerTime.hour, minute: triggerTime.minute),
+  );
+
+  await scheduleSimpleReminder(
+    reminder,
+    libelle: '🎉 Compte patient activé !',
+  );
+}
+ 
+ 
   Future<void> cancelAll() async => await _plugin.cancelAll();
 
   // ════════════════════════════════════════════════════════════

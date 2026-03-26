@@ -278,17 +278,23 @@ class _LoginPageState extends State<LoginPage>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                                color: Colors.white.withOpacity(0.3)),
-                          ),
-                          child: const Icon(Icons.monitor_heart,
-                              color: Colors.white, size: 32),
-                        ),
+  width: 64,
+  height: 64,
+  decoration: BoxDecoration(
+    borderRadius: BorderRadius.circular(18),
+    border: Border.all(
+        color: Colors.white.withOpacity(0.3)),
+  ),
+  child: ClipRRect(
+    borderRadius: BorderRadius.circular(17),
+    child: Image.asset(
+      'assets/logo.png',
+      width: 64,
+      height: 64,
+      fit: BoxFit.cover,
+    ),
+  ),
+),
                         const SizedBox(height: 12),
                         Text('Lamesse Dama',
                             style: AppTextStyles.h1

@@ -8,6 +8,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/app_utils.dart';
 import '../../../../services/app_provider.dart';
 import '../../../../shared/widgets/shared_widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../services/local_storage.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -1104,55 +1105,52 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
 
   // ─── Méthode _submit() à remplacer ───────────────────────────────
   void _submit(BuildContext ctx) {
-    if (_doctorEmailCtrl.text.trim().isEmpty) {
-      AppUtils.showSnackBar(ctx, 'L\'email du médecin est obligatoire',
-          isError: true);
-      return;
-    }
-    if (_receiptFile == null) {
-      AppUtils.showSnackBar(ctx, 'Veuillez joindre le reçu de consultation',
-          isError: true);
-      return;
-    }
-    if (_carnetFile == null) {
-      AppUtils.showSnackBar(
-          ctx, 'Veuillez joindre la page du carnet de santé',
-          isError: true);
-      return;
-    }
- 
-    setState(() => _isSubmitting = true);
- 
-    Future.delayed(const Duration(milliseconds: 1200), () async {
-      if (!mounted) return;
- 
-      // 1. Mettre le statut à pending_validation dans le provider
-      final user = widget.provider.currentUser;
-      if (user != null) {
-        final updatedUser = user.copyWith(
-          healthStatus: 'pending_validation',
-          diseaseType: _disease,
-        );
-        await widget.provider.updateUser(updatedUser);
- 
-        // 2. Sauvegarder le flag welcome pour la prochaine connexion
-        await LocalStorage().saveValidationWelcomePending(user.email);
-      }
- 
-      setState(() => _isSubmitting = false);
- 
-      // 3. Fermer la sheet directement
-      if (!mounted) return;
-      Navigator.pop(context);
- 
-      // 4. Feedback utilisateur
-      AppUtils.showSnackBar(
-        ctx,
-        'Demande envoyée ! Déconnectez-vous pour finaliser lors de votre prochaine connexion.',
-      );
-    });
+  if (_doctorEmailCtrl.text.trim().isEmpty) {
+    AppUtils.showSnackBar(ctx, 'L\'email du médecin est obligatoire', isError: true);
+    return;
   }
- 
+  if (_receiptFile == null) {
+    AppUtils.showSnackBar(ctx, 'Veuillez joindre le reçu de consultation', isError: true);
+    return;
+  }
+  if (_carnetFile == null) {
+    AppUtils.showSnackBar(ctx, 'Veuillez joindre la page du carnet de santé', isError: true);
+    return;
+  }
+
+  setState(() => _isSubmitting = true);
+
+  Future.delayed(const Duration(milliseconds: 1200), () async {
+    if (!mounted) return;
+
+    final user = widget.provider.currentUser;
+    if (user != null) {
+      // 1. Passer en pending_validation côté UI
+      final updatedUser = user.copyWith(
+        healthStatus: 'pending_validation',
+        diseaseType: _disease,
+      );
+      await widget.provider.updateUser(updatedUser);
+
+      // 2. Sauvegarder le flag welcome + activation automatique
+      //    => à la prochaine connexion, le compte sera directement "patient"
+      await LocalStorage().saveValidationWelcomePending(user.email);
+      // On stocke aussi le diseaseType pour pouvoir activer proprement au login
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('ld_pending_disease_type_${user.email}', _disease);
+    }
+
+    setState(() => _isSubmitting = false);
+
+    if (!mounted) return;
+    Navigator.pop(context);
+
+    AppUtils.showSnackBar(
+      ctx,
+      'Demande envoyée ! Déconnectez-vous pour finaliser.',
+    );
+  });
+}
 
   void _simulateValidation() {
     setState(() => _step = 4);
@@ -1588,13 +1586,13 @@ class _PatientActivationSheetState extends State<_PatientActivationSheet> {
         _stepItem('3', 'Validation du médecin', false),
         _stepItem('4', 'Activation du mode patient', false),
 
-        const SizedBox(height: 24),
+        /*const SizedBox(height: 24),
         PrimaryButton(
           label: 'Simuler une validation (démo)',
           onPressed: _simulateValidation,
           icon: Icons.verified_user_outlined,
           color: AppColors.accent,
-        ),
+        ),*/
         const SizedBox(height: 10),
         TextButton(
           onPressed: () => Navigator.pop(context),

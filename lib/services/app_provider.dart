@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lamesse_dama_mobile/data/repositories/intake_repository.dart';
 import 'package:lamesse_dama_mobile/features/auth/presentation/pages/login_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lamesse_dama_mobile/services/auth_service.dart';
 import 'package:uuid/uuid.dart';
 import '../data/models/models.dart';
@@ -164,6 +165,12 @@ class AppProvider extends ChangeNotifier {
     final triggered = await _localStorage.consumeTriggeredScheduledNotifications();
     for (final n in triggered) _notifications.insert(0, n);
 
+    // Notification barre de statut si le compte vient d'être validé
+if (_pendingValidationWelcome) {
+    await _notif.initialize();
+    await _notif.showPatientValidatedNotification();
+  }
+
     // ── Charger les données ──
     if (fromLocal) {
       await _loadFromLocal(user);
@@ -189,27 +196,43 @@ class AppProvider extends ChangeNotifier {
 
   // ── Vérification bienvenue post-validation ──
   Future<void> _checkValidationWelcome(UserModel user) async {
-    final pendingEmail = await _localStorage.loadValidationWelcomePending();
-    if (pendingEmail != null &&
-        pendingEmail.toLowerCase() == user.email.toLowerCase()) {
-      _pendingValidationWelcome = true;
-      // Consommer le flag pour qu'il ne s'affiche qu'une seule fois
-      await _localStorage.consumeValidationWelcome();
+  final pendingEmail = await _localStorage.loadValidationWelcomePending();
+  if (pendingEmail == null ||
+      pendingEmail.toLowerCase() != user.email.toLowerCase()) return;
 
-      // Injecter la notification in-app (sera ajoutée après chargement des notifs)
-      final notif = NotificationModel(
-        id: 'validation_welcome_${DateTime.now().millisecondsSinceEpoch}',
-        title: '✅ Demande validée !',
-        body:
-            'Votre demande patient a été acceptée. Rendez-vous dans Paramètres pour compléter votre profil (localisation, poids, taille).',
-        type: NotificationType.doctorAppointment,
-        createdAt: DateTime.now(),
-        isRead: false,
-      );
-      // Insérer en tête des notifications (elles seront persistées après)
-      _notifications.insert(0, notif);
-    }
-  }
+  // Récupérer le diseaseType sauvegardé lors de la soumission
+  final prefs = await SharedPreferences.getInstance();
+  final diseaseType = prefs.getString('ld_pending_disease_type_${user.email}') ?? 'hypertension';
+
+  // Activer proprement le compte patient
+  _currentUser = user.copyWith(
+    healthStatus: 'patient',
+    diseaseType: diseaseType,
+  );
+  await _localStorage.saveUser(_currentUser!);
+  await AuthService().updateStoredUser(_currentUser!);
+
+  // Nettoyer les flags temporaires
+  await _localStorage.consumeValidationWelcome();
+  await prefs.remove('ld_pending_disease_type_${user.email}');
+
+  // Activer le flag welcome dialog
+  _pendingValidationWelcome = true;
+
+  // Notification in-app
+  final notif = NotificationModel(
+    id: 'validation_welcome_${DateTime.now().millisecondsSinceEpoch}',
+    title: '✅ Compte patient activé !',
+    body:
+        'Votre demande a été acceptée. Rendez-vous dans Paramètres pour compléter votre profil (localisation, poids, taille).',
+    type: NotificationType.doctorAppointment,
+    createdAt: DateTime.now(),
+    isRead: false,
+  );
+  _notifications.insert(0, notif);
+
+  await _localStorage.saveNotifications(_notifications);
+}
 
   // ════════════════════════════════════════════════════════════
   // ─── Retour au premier plan ───

@@ -166,16 +166,20 @@ class _SplashScreen extends StatelessWidget {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white.withOpacity(0.3)),
-              ),
-              child: const Icon(
-                Icons.monitor_heart,
-                color: Colors.white,
-                size: 40,
-              ),
-            ),
+    borderRadius: BorderRadius.circular(18),
+    border: Border.all(
+        color: Colors.white.withOpacity(0.3)),
+  ),
+  child: ClipRRect(
+    borderRadius: BorderRadius.circular(17),
+    child: Image.asset(
+      'assets/logo.png',
+      width: 64,
+      height: 64,
+      fit: BoxFit.cover,
+    ),
+  ),
+),
             const SizedBox(height: 24),
             Text(
               'Lamesse Dama',
